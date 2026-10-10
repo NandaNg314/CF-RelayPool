@@ -1,9 +1,9 @@
 {
-  "name": "key-pool-router",
+  "name": "cf-relaypool",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Multi-Key Pool Router with Request-Level Failover & WebUI on Cloudflare Workers",
+  "description": "CF-RelayPool: Multi-Gateway API Key Pool with Request-Level Failover & WebUI on Cloudflare Workers",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

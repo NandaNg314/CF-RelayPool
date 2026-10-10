@@ -3,7 +3,7 @@ export const UI_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KeyPool Router - 多网关多账号故障转移控制台</title>
+  <title>CF-RelayPool - 多网关多账号故障转移中继控制台</title>
   <style>
     :root {
       --bg: #0b0f19;
@@ -395,8 +395,8 @@ export const UI_HTML = `<!DOCTYPE html>
       <div class="brand">
         <div class="brand-icon">⚡</div>
         <div>
-          <div class="brand-title">KeyPool Router</div>
-          <div class="brand-subtitle">多网关多平台额度池 · 请求级毫秒故障转移</div>
+          <div class="brand-title">CF-RelayPool</div>
+          <div class="brand-subtitle">多网关多平台额度池 · 请求级毫秒故障转移中继网关</div>
         </div>
       </div>
       <div class="header-actions" id="headerAuthActions" style="display: none;">
