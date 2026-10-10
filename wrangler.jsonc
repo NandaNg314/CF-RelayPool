@@ -19,10 +19,8 @@
     "enabled": true
   },
   "workers_dev": true,
-  "routes": [
-    {
-      "pattern": "api.enking.ccwu.cc",
-      "custom_domain": true
-    }
-  ]
+  // 提示：自定义域名只需在 Cloudflare Dashboard 绑定一次，或在此取消注释填入自有域名
+  // "routes": [
+  //   { "pattern": "<你的自定义域名>", "custom_domain": true }
+  // ]
 }
