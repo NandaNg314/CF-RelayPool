@@ -7,7 +7,7 @@ export const UI_HTML = `<!DOCTYPE html>
   <style>
     :root {
       --bg: #0b0f19;
-      --card-bg: rgba(23, 32, 54, 0.7);
+      --card-bg: rgba(23, 32, 54, 0.75);
       --card-border: rgba(255, 255, 255, 0.08);
       --text: #f3f4f6;
       --text-muted: #9ca3af;
@@ -28,6 +28,8 @@ export const UI_HTML = `<!DOCTYPE html>
       line-height: 1.5;
     }
     .container { max-width: 1200px; margin: 0 auto; }
+
+    /* Header */
     header {
       display: flex;
       justify-content: space-between;
@@ -40,14 +42,45 @@ export const UI_HTML = `<!DOCTYPE html>
     }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-icon {
-      width: 40px; height: 40px; border-radius: 10px;
+      width: 42px; height: 42px; border-radius: 12px;
       background: linear-gradient(135deg, #3b82f6, #8b5cf6);
       display: flex; align-items: center; justify-content: center;
-      font-size: 20px; font-weight: bold;
+      font-size: 22px; font-weight: bold;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     }
     .brand-title { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
     .brand-subtitle { font-size: 12px; color: var(--text-muted); }
     .header-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* Login View */
+    #loginView {
+      display: none;
+      min-height: 70vh;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .login-card {
+      background: rgba(23, 32, 54, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 36px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .login-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .login-icon {
+      width: 56px; height: 56px; border-radius: 16px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin-bottom: 6px;
+      box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
+    }
 
     /* Cards */
     .grid-stats {
@@ -90,6 +123,7 @@ export const UI_HTML = `<!DOCTYPE html>
     .btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       padding: 8px 14px;
       border-radius: 8px;
@@ -137,7 +171,7 @@ export const UI_HTML = `<!DOCTYPE html>
     }
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
     th {
-      background: rgba(0, 0, 0, 0.2);
+      background: rgba(0, 0, 0, 0.25);
       padding: 12px 16px;
       color: var(--text-muted);
       font-weight: 600;
@@ -272,84 +306,105 @@ export const UI_HTML = `<!DOCTYPE html>
           <div class="brand-subtitle">请求级自动故障转移 · 多账号额度池网关</div>
         </div>
       </div>
-      <div class="header-actions">
-        <input type="password" id="adminPwdInput" class="form-input" style="width: 140px; padding: 6px 10px;" placeholder="管理密码(若有)" />
+      <div class="header-actions" id="headerAuthActions" style="display: none;">
+        <span class="badge badge-active" style="padding: 4px 10px;">🟢 已授权登录</span>
         <button class="btn btn-sm" onclick="fetchData()">🔄 刷新</button>
+        <button class="btn btn-sm btn-danger" onclick="logout()">🔒 退出</button>
       </div>
     </header>
 
-    <!-- Stats -->
-    <div class="grid-stats">
-      <div class="stat-card">
-        <div class="stat-title">🟢 活跃可用 Key</div>
-        <div class="stat-value" id="statActive">0</div>
-        <div class="stat-desc">可立即提供服务的 Key 数量</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-title">🟡 额度耗尽 / 待恢复</div>
-        <div class="stat-value" id="statExhausted">0</div>
-        <div class="stat-desc">点数或额度耗尽，可一键复活</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-title">🔴 失效 / 认证错误</div>
-        <div class="stat-value" id="statInvalid">0</div>
-        <div class="stat-desc">上游返回 401 或格式异常</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-title">📊 历史调度次数</div>
-        <div class="stat-value" id="statCalls">0</div>
-        <div class="stat-desc">成功 / 自动换号重试汇总</div>
+    <!-- 1. 登录视图 -->
+    <div id="loginView">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-icon">🔐</div>
+          <div style="font-size: 18px; font-weight: 700;">管理控制台身份验证</div>
+          <div style="font-size: 13px; color: var(--text-muted);">请输入管理密钥 (Admin Password)</div>
+        </div>
+        <div class="form-group">
+          <input type="password" id="loginPwdInput" class="form-input" style="padding: 12px; font-size: 14px;" placeholder="请输入管理密码 (sk-...)" autofocus onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="btn btn-primary" style="padding: 12px; font-size: 14px; font-weight: 600;" onclick="doLogin()">🚀 验证并进入控制台</button>
+        <div id="loginError" style="font-size: 12px; color: var(--danger); text-align: center; display: none;"></div>
       </div>
     </div>
 
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <button class="btn btn-primary" onclick="openModal('importModal')">➕ 批量导入 Key</button>
-        <button class="btn btn-success" id="btnProbeAll" onclick="probeAllKeys()">⚡ 一键测活全量</button>
-        <button class="btn btn-warning" onclick="reviveAllKeys()">🔄 一键复活已耗尽</button>
-        <button class="btn" onclick="openModal('testModal')">💬 在线连通性测试</button>
-        <button class="btn" onclick="openModal('configModal')">⚙️ 网关配置</button>
-      </div>
-      <div class="toolbar-right">
-        <div class="tabs">
-          <button class="tab active" onclick="setFilter('all', this)">全部 (<span id="countAll">0</span>)</button>
-          <button class="tab" onclick="setFilter('active', this)">活跃 (<span id="countActive">0</span>)</button>
-          <button class="tab" onclick="setFilter('exhausted', this)">耗尽 (<span id="countExhausted">0</span>)</button>
-          <button class="tab" onclick="setFilter('invalid', this)">失效 (<span id="countInvalid">0</span>)</button>
+    <!-- 2. 主控制台视图 -->
+    <div id="appView" style="display: none;">
+      <!-- Stats -->
+      <div class="grid-stats">
+        <div class="stat-card">
+          <div class="stat-title">🟢 活跃可用 Key</div>
+          <div class="stat-value" id="statActive">0</div>
+          <div class="stat-desc">可立即提供服务的 Key 数量</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">🟡 额度耗尽 / 待恢复</div>
+          <div class="stat-value" id="statExhausted">0</div>
+          <div class="stat-desc">点数或额度耗尽，可一键复活</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">🔴 失效 / 认证错误</div>
+          <div class="stat-value" id="statInvalid">0</div>
+          <div class="stat-desc">上游返回 401 或格式异常</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">📊 历史调度次数</div>
+          <div class="stat-value" id="statCalls">0</div>
+          <div class="stat-desc">成功 / 自动换号重试汇总</div>
         </div>
       </div>
-    </div>
 
-    <!-- Key Table -->
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 100px;">状态</th>
-            <th>名称 / 备注</th>
-            <th>Key 凭证 (点击复制)</th>
-            <th style="width: 120px;">成功 / 失败</th>
-            <th style="width: 140px;">最后调度</th>
-            <th>健康检查说明</th>
-            <th style="width: 180px; text-align: right;">操作</th>
-          </tr>
-        </thead>
-        <tbody id="keysTableBody">
-          <tr>
-            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 36px;">加载数据中...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button class="btn btn-primary" onclick="openModal('importModal')">➕ 批量导入 Key</button>
+          <button class="btn btn-success" id="btnProbeAll" onclick="probeAllKeys()">⚡ 一键测活全量</button>
+          <button class="btn btn-warning" onclick="reviveAllKeys()">🔄 一键复活已耗尽</button>
+          <button class="btn" onclick="openModal('testModal')">💬 在线连通性测试</button>
+          <button class="btn" onclick="openModal('configModal')">⚙️ 网关配置</button>
+        </div>
+        <div class="toolbar-right">
+          <div class="tabs">
+            <button class="tab active" onclick="setFilter('all', this)">全部 (<span id="countAll">0</span>)</button>
+            <button class="tab" onclick="setFilter('active', this)">活跃 (<span id="countActive">0</span>)</button>
+            <button class="tab" onclick="setFilter('exhausted', this)">耗尽 (<span id="countExhausted">0</span>)</button>
+            <button class="tab" onclick="setFilter('invalid', this)">失效 (<span id="countInvalid">0</span>)</button>
+          </div>
+        </div>
+      </div>
 
-    <!-- Integration Hint -->
-    <div class="stat-card" style="margin-top: 16px;">
-      <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">💡 客户端接入指引 (OpenAI 兼容协议)</div>
-      <div style="font-size: 13px; color: var(--text-muted); line-height: 1.8;">
-        • <strong>API Base URL</strong>: <code class="key-mono" id="apiEndpointBase">https://.../v1</code><br>
-        • <strong>请求级故障转移</strong>: 发送对话时，网关会自动挑选健康的 Key 请求上游。若返回 402/429/点数不足，将在<b>同一次请求内瞬间换号重发</b>，直到成功返回！<br>
-        • <strong>当前配置的上游目标</strong>: <span id="hintTargetBase">...</span> | 默认测试模型: <span id="hintModel">...</span>
+      <!-- Key Table -->
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 100px;">状态</th>
+              <th>名称 / 备注</th>
+              <th>Key 凭证 (点击复制)</th>
+              <th style="width: 120px;">成功 / 失败</th>
+              <th style="width: 140px;">最后调度</th>
+              <th>健康检查说明</th>
+              <th style="width: 180px; text-align: right;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="keysTableBody">
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 36px;">加载数据中...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Integration Hint -->
+      <div class="stat-card" style="margin-top: 16px;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">💡 客户端接入指引 (OpenAI 兼容协议)</div>
+        <div style="font-size: 13px; color: var(--text-muted); line-height: 1.9;">
+          • <strong>API Base URL</strong>: <code class="key-mono" id="apiEndpointBase">https://.../v1</code><br>
+          • <strong>API Key (Bearer)</strong>: <code class="key-mono" id="hintClientApiKey" onclick="copyText(this.textContent)">...</code> (点击复制)<br>
+          • <strong>请求级故障转移</strong>: 发送对话时，网关会自动挑选健康的 Key 请求上游。若返回 402/429/点数不足，将在<b>同一次请求内瞬间换号重试</b>，直到成功返回！<br>
+          • <strong>当前配置的上游目标</strong>: <span id="hintTargetBase">...</span> | 默认测试模型: <span id="hintModel">...</span>
+        </div>
       </div>
     </div>
   </div>
@@ -403,7 +458,7 @@ export const UI_HTML = `<!DOCTYPE html>
           <div style="font-size: 11px; color: var(--text-muted);">超过该天数未使用的耗尽 Key 将在轮询时重新作为候选尝试或恢复</div>
         </div>
         <div class="form-group">
-          <label class="form-label">管理面板密码 (留空则不设密码)</label>
+          <label class="form-label">管理面板密码</label>
           <input type="password" id="cfgAdminPassword" class="form-input" placeholder="留空不修改，输入新密码覆盖">
         </div>
         <div class="form-group">
@@ -448,9 +503,15 @@ export const UI_HTML = `<!DOCTYPE html>
   <script>
     let poolData = { keys: [], config: {} };
     let currentFilter = 'all';
+    const TOKEN_STORAGE_KEY = 'keypool_admin_key';
 
     function getAdminKey() {
-      return document.getElementById('adminPwdInput').value.trim();
+      return localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    }
+
+    function setAdminKey(key) {
+      if (key) localStorage.setItem(TOKEN_STORAGE_KEY, key);
+      else localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
 
     function showToast(msg, isError = false) {
@@ -474,19 +535,70 @@ export const UI_HTML = `<!DOCTYPE html>
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        showLoginView();
+        throw new Error('认证失败，请重新登录');
+      }
       if (!res.ok) {
         throw new Error(data.error || ('HTTP ' + res.status));
       }
       return data;
     }
 
+    function showLoginView(errorMsg = '') {
+      document.getElementById('loginView').style.display = 'flex';
+      document.getElementById('appView').style.display = 'none';
+      document.getElementById('headerAuthActions').style.display = 'none';
+      const errEl = document.getElementById('loginError');
+      if (errorMsg) {
+        errEl.textContent = errorMsg;
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
+    }
+
+    function showAppView() {
+      document.getElementById('loginView').style.display = 'none';
+      document.getElementById('appView').style.display = 'block';
+      document.getElementById('headerAuthActions').style.display = 'flex';
+    }
+
+    async function doLogin() {
+      const pwd = document.getElementById('loginPwdInput').value.trim();
+      if (!pwd) {
+        showLoginView('请输入管理密钥');
+        return;
+      }
+      setAdminKey(pwd);
+      try {
+        await fetchData();
+        showAppView();
+      } catch (e) {
+        setAdminKey('');
+        showLoginView('登录失败：' + e.message);
+      }
+    }
+
+    function logout() {
+      setAdminKey('');
+      document.getElementById('loginPwdInput').value = '';
+      showLoginView();
+      showToast('已安全退出登录');
+    }
+
     async function fetchData() {
       try {
         const data = await apiReq('/status');
         poolData = data;
+        showAppView();
         render();
       } catch (e) {
-        showToast('获取数据失败: ' + e.message, true);
+        if (!getAdminKey()) {
+          showLoginView();
+        } else {
+          showLoginView('认证过期或密码错误');
+        }
       }
     }
 
@@ -529,6 +641,7 @@ export const UI_HTML = `<!DOCTYPE html>
       document.getElementById('hintTargetBase').textContent = config.targetBase || 'https://discovery-api.intern-ai.org.cn/v1';
       document.getElementById('hintModel').textContent = config.defaultModel || 'deepseek-v4-flash-0731';
       document.getElementById('apiEndpointBase').textContent = window.location.origin + '/v1';
+      document.getElementById('hintClientApiKey').textContent = config.clientApiKey || '未设置 (免密访问)';
 
       // fill config fields
       document.getElementById('cfgTargetBase').value = config.targetBase || '';
@@ -594,6 +707,7 @@ export const UI_HTML = `<!DOCTYPE html>
     }
 
     function copyText(txt) {
+      if (!txt || txt.includes('未设置')) return;
       navigator.clipboard.writeText(txt).then(() => showToast('已复制到剪贴板！'));
     }
 
@@ -716,8 +830,9 @@ export const UI_HTML = `<!DOCTYPE html>
       const startTime = Date.now();
       try {
         const headers = { 'content-type': 'application/json' };
-        if (poolData.config && poolData.config.clientApiKey) {
-          headers['authorization'] = 'Bearer ' + poolData.config.clientApiKey;
+        const clientKey = poolData.config?.clientApiKey || getAdminKey();
+        if (clientKey) {
+          headers['authorization'] = 'Bearer ' + clientKey;
         }
 
         const res = await fetch('/v1/chat/completions', {
@@ -770,12 +885,16 @@ export const UI_HTML = `<!DOCTYPE html>
         out.textContent = '❌ 网络异常: ' + e.message;
       } finally {
         btn.disabled = false;
-        fetchData(); // 刷新成功计数
+        fetchData();
       }
     }
 
-    // 初始化
-    fetchData();
+    // 页面启动检查
+    if (!getAdminKey()) {
+      showLoginView();
+    } else {
+      fetchData();
+    }
   </script>
 </body>
 </html>

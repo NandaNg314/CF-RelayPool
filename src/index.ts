@@ -143,7 +143,11 @@ export default {
       // 获取状态与列表
       if (pathname === '/admin/api/status' && request.method === 'GET') {
         const keys = await loadKeys(env.KEY_POOL_KV)
-        const safeConfig = { ...config, adminPassword: config.adminPassword ? '******' : '' }
+        const safeConfig = {
+          ...config,
+          adminPassword: config.adminPassword || env.ADMIN_PASSWORD ? '******' : '',
+          clientApiKey: config.clientApiKey || env.CLIENT_API_KEY || '',
+        }
         return jsonResponse({ keys, config: safeConfig })
       }
 
