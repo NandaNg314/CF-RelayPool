@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "key-pool-router",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "kv_namespaces": [
+    {
+      "binding": "KEY_POOL_KV",
+      "id": "6122127c8e6c487c9ef69678db332ae3"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  },
+  "rules": [
+    { "type": "Text", "fallthrough": true, "globs": ["src/*.html"] }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "workers_dev": true
+}
