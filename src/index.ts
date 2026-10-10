@@ -1,10 +1,12 @@
-import type { Env, KeyItem, PoolConfig } from './types.js'
+import type { Env, KeyItem, PoolConfig, GatewayProfile } from './types.js'
 import {
   DEFAULT_CONFIG,
+  fetchGatewayModels,
   loadConfig,
   loadKeys,
   pickCandidateKeys,
   probeKey,
+  resolveGateway,
   saveConfig,
   saveKeys,
 } from './pool.js'
@@ -28,7 +30,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 /** 校验管理权限 */
 function verifyAdmin(request: Request, config: PoolConfig, env: Env): boolean {
   const expected = env.ADMIN_PASSWORD || config.adminPassword
-  if (!expected) return true // 未设置密码则放行
+  if (!expected) return true
 
   const headerKey = request.headers.get('x-admin-key')
   if (headerKey && headerKey === expected) return true
@@ -48,7 +50,7 @@ function verifyAdmin(request: Request, config: PoolConfig, env: Env): boolean {
 /** 校验客户端调用权限 */
 function verifyClient(request: Request, config: PoolConfig, env: Env): boolean {
   const expected = env.CLIENT_API_KEY || config.clientApiKey
-  if (!expected) return true // 未设客户端 API Key 则公开
+  if (!expected) return true
 
   const authHeader = request.headers.get('authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -151,23 +153,110 @@ export default {
         return jsonResponse({ keys, config: safeConfig })
       }
 
-      // 导入 Keys
+      // 切换主激活网关
+      if (pathname === '/admin/api/gateways/active' && request.method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as { id?: string }
+        if (!body.id) return jsonResponse({ error: '缺少网关 id' }, 400)
+        const gw = config.gateways.find((g) => g.id === body.id)
+        if (!gw) return jsonResponse({ error: '未找到指定网关' }, 404)
+        config.activeGatewayId = gw.id
+        await saveConfig(env.KEY_POOL_KV, config)
+        return jsonResponse({ ok: true, activeGatewayId: gw.id })
+      }
+
+      // 新增或更新网关 Profile
+      if (pathname === '/admin/api/gateways/save' && request.method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as { gateway?: Partial<GatewayProfile> }
+        const gwData = body.gateway
+        if (!gwData || !gwData.id || !gwData.targetBase) {
+          return jsonResponse({ error: '网关 id 与 targetBase 为必填项' }, 400)
+        }
+
+        const id = gwData.id.trim()
+        const existingIdx = config.gateways.findIndex((g) => g.id === id)
+        const profile: GatewayProfile = {
+          id,
+          name: gwData.name?.trim() || id,
+          targetBase: gwData.targetBase.trim().replace(/\/+$/, ''),
+          defaultModel: gwData.defaultModel?.trim() || 'deepseek-chat',
+          customModels: gwData.customModels?.trim() || '',
+          fetchedModels: gwData.fetchedModels || [],
+          lastModelFetchAt: gwData.lastModelFetchAt || Date.now(),
+        }
+
+        if (existingIdx !== -1) {
+          // 保留之前拉取的模型列表
+          if (!profile.fetchedModels || profile.fetchedModels.length === 0) {
+            profile.fetchedModels = config.gateways[existingIdx]?.fetchedModels || []
+          }
+          config.gateways[existingIdx] = profile
+        } else {
+          config.gateways.push(profile)
+        }
+
+        await saveConfig(env.KEY_POOL_KV, config)
+        return jsonResponse({ ok: true, gateway: profile })
+      }
+
+      // 删除网关
+      if (pathname === '/admin/api/gateways/delete' && request.method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as { id?: string }
+        if (!body.id) return jsonResponse({ error: '缺少网关 id' }, 400)
+        if (config.gateways.length <= 1) {
+          return jsonResponse({ error: '不能删除最后一个网关' }, 400)
+        }
+
+        config.gateways = config.gateways.filter((g) => g.id !== body.id)
+        if (config.activeGatewayId === body.id) {
+          config.activeGatewayId = config.gateways[0]!.id
+        }
+        await saveConfig(env.KEY_POOL_KV, config)
+        return jsonResponse({ ok: true, activeGatewayId: config.activeGatewayId })
+      }
+
+      // 动态向网关上游探测并获取可用模型列表
+      if (pathname === '/admin/api/gateways/fetch-models' && request.method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as { id?: string }
+        const gw = resolveGateway(config, body.id)
+        const keys = await loadKeys(env.KEY_POOL_KV)
+        const candidate = keys.find((k) => (k.gatewayId || 'intern') === gw.id && !k.disabled && k.status === 'active') || keys.find((k) => (k.gatewayId || 'intern') === gw.id)
+
+        if (!candidate) {
+          return jsonResponse({ error: `网关 [${gw.name}] 尚未导入 Key，无法向上游探测模型列表。` }, 400)
+        }
+
+        const models = await fetchGatewayModels(gw.targetBase, candidate.key)
+        if (models.length > 0) {
+          gw.fetchedModels = models
+          gw.lastModelFetchAt = Date.now()
+          await saveConfig(env.KEY_POOL_KV, config)
+          return jsonResponse({ ok: true, models, count: models.length })
+        } else {
+          return jsonResponse({
+            ok: false,
+            message: '上游未提供公开的 /models 列表，已保留当前配置模型',
+            models: gw.fetchedModels || [gw.defaultModel],
+          })
+        }
+      }
+
+      // 导入 Keys (支持指定 gatewayId)
       if (pathname === '/admin/api/keys/import' && request.method === 'POST') {
-        const body = (await request.json().catch(() => ({}))) as { text?: string }
+        const body = (await request.json().catch(() => ({}))) as { text?: string; gatewayId?: string }
         if (!body.text) return jsonResponse({ error: '导入文本不能为空' }, 400)
 
         const parsed = parseImportLines(body.text)
         if (parsed.length === 0) return jsonResponse({ error: '未在文本中解析到有效 Key' }, 400)
 
+        const targetGid = body.gatewayId || config.activeGatewayId
         const keys = await loadKeys(env.KEY_POOL_KV)
         let importedCount = 0
         let ignoredCount = 0
 
         for (const item of parsed) {
-          const existing = keys.find((k) => k.key.trim() === item.key.trim())
+          const existing = keys.find((k) => k.key.trim() === item.key.trim() && (k.gatewayId || 'intern') === targetGid)
           if (existing) {
             ignoredCount++
-            // 更新名称
             if (item.name && !existing.name) existing.name = item.name
           } else {
             keys.push({
@@ -175,6 +264,7 @@ export default {
               key: item.key.trim(),
               name: item.name,
               status: 'active',
+              gatewayId: targetGid,
               addedAt: Date.now(),
               failCount: 0,
               successCount: 0,
@@ -189,14 +279,15 @@ export default {
 
       // 测活 Keys (单张或全量)
       if (pathname === '/admin/api/keys/probe' && request.method === 'POST') {
-        const body = (await request.json().catch(() => ({}))) as { id?: string; all?: boolean }
+        const body = (await request.json().catch(() => ({}))) as { id?: string; all?: boolean; gatewayId?: string }
         const keys = await loadKeys(env.KEY_POOL_KV)
 
         if (body.id) {
           const keyItem = keys.find((k) => k.id === body.id)
           if (!keyItem) return jsonResponse({ error: '未找到指定 Key' }, 404)
 
-          const res = await probeKey(keyItem.key, config.targetBase, config.defaultModel)
+          const gw = resolveGateway(config, keyItem.gatewayId)
+          const res = await probeKey(keyItem.key, gw.targetBase, gw.defaultModel)
           keyItem.status = res.status
           keyItem.lastCheckedAt = Date.now()
           keyItem.checkMessage = res.message
@@ -208,18 +299,20 @@ export default {
         }
 
         if (body.all) {
+          const targetGid = body.gatewayId || config.activeGatewayId
+          const targetKeys = keys.filter((k) => !targetGid || (k.gatewayId || 'intern') === targetGid)
           let activeCount = 0
           let exhaustedCount = 0
           let invalidCount = 0
 
-          // 分批测活 (每批 3 个，避免并发超限)
           const batchSize = 3
-          for (let i = 0; i < keys.length; i += batchSize) {
-            const batch = keys.slice(i, i + batchSize)
+          for (let i = 0; i < targetKeys.length; i += batchSize) {
+            const batch = targetKeys.slice(i, i + batchSize)
             await Promise.all(
               batch.map(async (k) => {
                 if (k.disabled) return
-                const res = await probeKey(k.key, config.targetBase, config.defaultModel)
+                const gw = resolveGateway(config, k.gatewayId)
+                const res = await probeKey(k.key, gw.targetBase, gw.defaultModel)
                 k.status = res.status
                 k.lastCheckedAt = Date.now()
                 k.checkMessage = res.message
@@ -241,7 +334,7 @@ export default {
             activeCount,
             exhaustedCount,
             invalidCount,
-            totalChecked: keys.filter((k) => !k.disabled).length,
+            totalChecked: targetKeys.filter((k) => !k.disabled).length,
           })
         }
 
@@ -250,7 +343,7 @@ export default {
 
       // 复活/重置状态
       if (pathname === '/admin/api/keys/revive' && request.method === 'POST') {
-        const body = (await request.json().catch(() => ({}))) as { id?: string; all?: boolean }
+        const body = (await request.json().catch(() => ({}))) as { id?: string; all?: boolean; gatewayId?: string }
         const keys = await loadKeys(env.KEY_POOL_KV)
         let revivedCount = 0
 
@@ -265,7 +358,9 @@ export default {
         }
 
         if (body.all) {
+          const targetGid = body.gatewayId
           for (const k of keys) {
+            if (targetGid && (k.gatewayId || 'intern') !== targetGid) continue
             if (k.status === 'exhausted') {
               k.status = 'active'
               k.failCount = 0
@@ -304,14 +399,11 @@ export default {
         return jsonResponse({ ok: true })
       }
 
-      // 保存系统配置
+      // 保存全局配置 (如重试次数、密码、API Key 等)
       if (pathname === '/admin/api/config' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as Partial<PoolConfig>
         const updated: PoolConfig = {
           ...config,
-          targetBase: body.targetBase ? body.targetBase.trim() : config.targetBase,
-          defaultModel: body.defaultModel ? body.defaultModel.trim() : config.defaultModel,
-          customModels: body.customModels !== undefined ? body.customModels.trim() : config.customModels,
           maxRetries: Number.isFinite(body.maxRetries) ? Math.max(1, body.maxRetries!) : config.maxRetries,
           autoResetDays: Number.isFinite(body.autoResetDays) ? Math.max(1, body.autoResetDays!) : config.autoResetDays,
           clientApiKey: body.clientApiKey !== undefined ? body.clientApiKey.trim() : config.clientApiKey,
@@ -326,25 +418,35 @@ export default {
       return jsonResponse({ error: '未知的管理接口' }, 404)
     }
 
-    // ── 3. OpenAI 兼容网关 (/v1/*) ──
-    if (pathname === '/v1/chat/completions') {
-      if (!verifyClient(request, config, env)) {
-        return jsonResponse(
-          { error: { message: '未授权：客户端 API Key 无效或缺失', type: 'authentication_error' } },
-          401
-        )
-      }
-      return handleChatCompletions(request, env.KEY_POOL_KV, config, ctx)
+    // ── 3. OpenAI 兼容网关 (/v1/* 或 /:gatewayId/v1/*) ──
+    // 支持路径中指定网关：如 /deepseek/v1/chat/completions 或 /intern/v1/chat/completions
+    const matchGatewayPrefix = pathname.match(/^\/([a-zA-Z0-9_-]+)\/v1\/(chat\/completions|models)$/)
+    let targetGatewayId: string | undefined
+    let subRoute = ''
+
+    if (matchGatewayPrefix) {
+      targetGatewayId = matchGatewayPrefix[1]
+      subRoute = matchGatewayPrefix[2]!
+    } else if (pathname === '/v1/chat/completions') {
+      subRoute = 'chat/completions'
+    } else if (pathname === '/v1/models') {
+      subRoute = 'models'
     }
 
-    if (pathname === '/v1/models') {
+    if (subRoute) {
       if (!verifyClient(request, config, env)) {
         return jsonResponse(
           { error: { message: '未授权：客户端 API Key 无效或缺失', type: 'authentication_error' } },
           401
         )
       }
-      return handleModels(request, env.KEY_POOL_KV, config)
+
+      if (subRoute === 'chat/completions') {
+        return handleChatCompletions(request, env.KEY_POOL_KV, config, ctx, targetGatewayId)
+      }
+      if (subRoute === 'models') {
+        return handleModels(request, env.KEY_POOL_KV, config, ctx, targetGatewayId)
+      }
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders() })

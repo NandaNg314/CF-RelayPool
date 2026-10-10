@@ -1,11 +1,47 @@
-import type { KeyItem, PoolConfig } from './types.js'
-import { loadKeys, pickCandidateKeys, saveKeys } from './pool.js'
+import type { KeyItem, PoolConfig, GatewayProfile } from './types.js'
+import { loadKeys, pickCandidateKeys, resolveGateway, saveKeys, saveConfig } from './pool.js'
+
+/** 根据请求特征解析最匹配的目标网关 Profile */
+export function matchGateway(
+  request: Request,
+  config: PoolConfig,
+  requestedModel?: string,
+  explicitGatewayId?: string
+): GatewayProfile {
+  // 1. 显式指定的网关 ID (URL 路径参数等)
+  if (explicitGatewayId) {
+    const found = config.gateways.find((g) => g.id === explicitGatewayId)
+    if (found) return found
+  }
+
+  // 2. 请求头中指定
+  const headerGid = request.headers.get('x-gateway')
+  if (headerGid) {
+    const found = config.gateways.find((g) => g.id === headerGid)
+    if (found) return found
+  }
+
+  // 3. 根据 model 名称智能自动匹配归属网关
+  if (requestedModel) {
+    const matched = config.gateways.find((g) => {
+      if (g.defaultModel === requestedModel) return true
+      if (g.fetchedModels && g.fetchedModels.includes(requestedModel)) return true
+      if (g.customModels && g.customModels.split(',').map((m) => m.trim()).includes(requestedModel)) return true
+      return false
+    })
+    if (matched) return matched
+  }
+
+  // 4. 默认返回当前激活的主网关
+  return resolveGateway(config)
+}
 
 export async function handleChatCompletions(
   request: Request,
   kv: KVNamespace,
   config: PoolConfig,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
+  explicitGatewayId?: string
 ): Promise<Response> {
   let body: Record<string, unknown>
   try {
@@ -17,32 +53,23 @@ export async function handleChatCompletions(
     })
   }
 
-  if (!body.model && config.defaultModel) {
-    body.model = config.defaultModel
+  const requestedModel = typeof body.model === 'string' ? body.model : undefined
+  const gateway = matchGateway(request, config, requestedModel, explicitGatewayId)
+
+  if (!body.model && gateway.defaultModel) {
+    body.model = gateway.defaultModel
   }
 
   const keys = await loadKeys(kv)
-  if (keys.length === 0) {
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: 'Key 池目前为空，请在管理面板导入至少一个有效 API Key。',
-          type: 'config_error',
-          code: 'no_keys_in_pool',
-        },
-      }),
-      { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
-    )
-  }
+  const candidates = pickCandidateKeys(keys, config, gateway.id)
 
-  const candidates = pickCandidateKeys(keys, config)
   if (candidates.length === 0) {
     return new Response(
       JSON.stringify({
         error: {
-          message: '池中所有 Key 均已停用或失效，请在面板检查 Key 状态或添加新 Key。',
-          type: 'quota_exhausted',
-          code: 'all_keys_disabled',
+          message: `网关 [${gateway.name}] 下暂无可用 Key。请在管理面板为该网关导入有效的 API Key。`,
+          type: 'config_error',
+          code: 'no_available_keys_for_gateway',
         },
       }),
       { status: 503, headers: { 'content-type': 'application/json; charset=utf-8' } }
@@ -50,8 +77,7 @@ export async function handleChatCompletions(
   }
 
   const maxAttempts = Math.min(candidates.length, config.maxRetries || 5)
-  const targetBase = config.targetBase.replace(/\/+$/, '')
-  const isStream = body.stream === true
+  const targetBase = gateway.targetBase.replace(/\/+$/, '')
   let lastErrorMsg = '无可用 Key 响应'
   let keysChanged = false
 
@@ -82,8 +108,8 @@ export async function handleChatCompletions(
           if (ctx) ctx.waitUntil(promise)
         }
 
-        // 透传 headers，尤其是流式 SSE headers
         const headers = new Headers(upstreamRes.headers)
+        headers.set('x-gateway-id', gateway.id)
         headers.set('x-used-key', `${candidate.name || candidate.id} (${candidate.key.slice(0, 7)}...${candidate.key.slice(-4)})`)
         headers.set('access-control-allow-origin', '*')
 
@@ -124,7 +150,6 @@ export async function handleChatCompletions(
         continue // 毫秒级换下一个 Key
       }
 
-      // 其它上游服务端故障 (5xx 等)
       lastErrorMsg = `上游返回 HTTP ${upstreamRes.status}: ${resText.slice(0, 100)}`
       continue
     } catch (err) {
@@ -133,7 +158,6 @@ export async function handleChatCompletions(
     }
   }
 
-  // 若状态变更，在后台异步存入 KV
   if (keysChanged) {
     const promise = saveKeys(kv, keys)
     if (ctx) ctx.waitUntil(promise)
@@ -142,7 +166,7 @@ export async function handleChatCompletions(
   return new Response(
     JSON.stringify({
       error: {
-        message: `已自动尝试 ${maxAttempts} 个 Key，均未成功。最后一次错误：${lastErrorMsg}。`,
+        message: `网关 [${gateway.name}] 已自动尝试 ${maxAttempts} 个 Key，均未成功。最后一次错误：${lastErrorMsg}。`,
         type: 'quota_exhausted',
         code: 'all_candidate_keys_failed',
       },
@@ -154,11 +178,14 @@ export async function handleChatCompletions(
 export async function handleModels(
   request: Request,
   kv: KVNamespace,
-  config: PoolConfig
+  config: PoolConfig,
+  ctx?: ExecutionContext,
+  explicitGatewayId?: string
 ): Promise<Response> {
+  const gateway = matchGateway(request, config, undefined, explicitGatewayId)
   const keys = await loadKeys(kv)
-  const candidate = keys.find((k) => !k.disabled && k.status === 'active') || keys[0]
-  const targetBase = config.targetBase.replace(/\/+$/, '')
+  const candidate = keys.find((k) => (k.gatewayId || 'intern') === gateway.id && !k.disabled && k.status === 'active') || keys[0]
+  const targetBase = gateway.targetBase.replace(/\/+$/, '')
 
   if (candidate) {
     try {
@@ -167,7 +194,15 @@ export async function handleModels(
         signal: AbortSignal.timeout(10_000),
       })
       if (res.ok) {
-        return new Response(res.body, {
+        const json = (await res.json()) as { object?: string; data?: Array<{ id: string }> }
+        if (Array.isArray(json.data) && json.data.length > 0) {
+          // 异步缓存探测到的最新模型列表
+          const ids = json.data.map((m) => m.id).filter(Boolean)
+          gateway.fetchedModels = Array.from(new Set(ids)).sort()
+          gateway.lastModelFetchAt = Date.now()
+          if (ctx) ctx.waitUntil(saveConfig(kv, config))
+        }
+        return new Response(JSON.stringify(json), {
           status: 200,
           headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' },
         })
@@ -175,15 +210,19 @@ export async function handleModels(
     } catch {}
   }
 
-  const rawList = (config.customModels || config.defaultModel || 'deepseek-chat')
-    .split(',')
-    .map((m) => m.trim())
-    .filter(Boolean)
+  // 兜底返回该网关配置的模型列表
+  const fallbackList = Array.from(
+    new Set([
+      ...(gateway.fetchedModels || []),
+      ...(gateway.customModels ? gateway.customModels.split(',').map((m) => m.trim()) : []),
+      gateway.defaultModel,
+    ].filter(Boolean))
+  )
 
   return new Response(
     JSON.stringify({
       object: 'list',
-      data: rawList.map((m) => ({ id: m, object: 'model', created: 1700000000, owned_by: 'custom' })),
+      data: fallbackList.map((m) => ({ id: m, object: 'model', created: 1700000000, owned_by: gateway.id })),
     }),
     { headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' } }
   )
