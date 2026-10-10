@@ -9,30 +9,6 @@ export const DEFAULT_GATEWAYS: GatewayProfile[] = [
     customModels: 'deepseek-v4-flash-0731,Agents-A1,Atria-Dawn-Preview',
     fetchedModels: ['deepseek-v4-flash-0731', 'Agents-A1', 'Atria-Dawn-Preview'],
   },
-  {
-    id: 'deepseek',
-    name: '🐳 DeepSeek 官方',
-    targetBase: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
-    customModels: 'deepseek-chat,deepseek-reasoner',
-    fetchedModels: ['deepseek-chat', 'deepseek-reasoner'],
-  },
-  {
-    id: 'silicon',
-    name: '⚡ 硅基流动 SiliconFlow',
-    targetBase: 'https://api.siliconflow.cn/v1',
-    defaultModel: 'deepseek-ai/DeepSeek-V3',
-    customModels: 'deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1',
-    fetchedModels: ['deepseek-ai/DeepSeek-V3', 'deepseek-ai/DeepSeek-R1'],
-  },
-  {
-    id: 'openrouter',
-    name: '🌐 OpenRouter',
-    targetBase: 'https://openrouter.ai/api/v1',
-    defaultModel: 'deepseek/deepseek-r1',
-    customModels: 'deepseek/deepseek-r1,anthropic/claude-3.5-sonnet',
-    fetchedModels: ['deepseek/deepseek-r1'],
-  },
 ]
 
 export const DEFAULT_CONFIG: PoolConfig = {
@@ -71,6 +47,17 @@ export async function loadConfig(kv: KVNamespace): Promise<PoolConfig> {
         if (raw.defaultModel) first.defaultModel = raw.defaultModel
         if (raw.customModels) first.customModels = raw.customModels
       }
+    }
+
+    // 自动清理此前未使用的占位空网关，确保默认不展示多余标签
+    const placeholderIds = ['deepseek', 'silicon', 'openrouter']
+    if (gateways.some((g) => placeholderIds.includes(g.id))) {
+      const keysRaw = (await kv.get<KeyItem[]>(KV_KEYS, 'json')) || []
+      gateways = gateways.filter((g) => {
+        if (!placeholderIds.includes(g.id)) return true
+        return keysRaw.some((k) => k.gatewayId === g.id) || g.id === raw.activeGatewayId
+      })
+      if (gateways.length === 0) gateways = [...DEFAULT_GATEWAYS]
     }
 
     config = {

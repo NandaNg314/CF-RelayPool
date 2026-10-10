@@ -528,10 +528,13 @@ export const UI_HTML = `<!DOCTYPE html>
       <!-- Integration Hint -->
       <div class="stat-card" style="margin-top: 16px;">
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">💡 客户端多网关接入方式 (OpenAI 兼容协议)</div>
-        <div style="font-size: 13px; color: var(--text-muted); line-height: 1.9;">
+        <div style="font-size: 13px; color: var(--text-muted); line-height: 2.0;">
           • <strong>通用全局入口</strong>: <code class="key-mono" id="apiEndpointBase">https://.../v1</code> (自动调用主网关，或根据客户端请求的 model 自动路由！)<br>
           • <strong>指定网关入口</strong>: <code class="key-mono" id="apiEndpointSpecific">https://.../{id}/v1</code> (直连当前指定网关，各网关 Key 互不影响)<br>
-          • <strong>API Key (Bearer)</strong>: <code class="key-mono" id="hintClientApiKey" onclick="copyText(this.textContent)">...</code> (点击复制)<br>
+          • <strong>API Key (Bearer)</strong>: 
+            <code class="key-mono" id="hintClientApiKey">••••••••••••</code>
+            <button class="btn btn-sm" id="btnToggleKeyMask" onclick="toggleApiKeyMask()" style="padding: 2px 8px; margin-left: 6px; font-size: 11px;">👁️ 显示</button>
+            <button class="btn btn-sm btn-primary" onclick="copyFullClientApiKey()" style="padding: 2px 8px; margin-left: 4px; font-size: 11px;">📋 复制完整密钥</button><br>
           • <strong>请求级毫秒故障转移</strong>: 发送请求时自动换号重试，同一次请求内毫秒级无缝完成。
         </div>
       </div>
@@ -708,6 +711,42 @@ export const UI_HTML = `<!DOCTYPE html>
       else localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
 
+    let isApiKeyRevealed = false;
+
+    function renderApiKeyHint() {
+      const rawKey = poolData.config?.clientApiKey || '';
+      const el = document.getElementById('hintClientApiKey');
+      const btn = document.getElementById('btnToggleKeyMask');
+      if (!el) return;
+      if (!rawKey) {
+        el.textContent = '未设置 (免密访问)';
+        if (btn) btn.style.display = 'none';
+        return;
+      }
+      if (btn) btn.style.display = 'inline-flex';
+      if (isApiKeyRevealed) {
+        el.textContent = rawKey;
+        if (btn) btn.textContent = '🙈 隐藏';
+      } else {
+        const masked = rawKey.length > 10
+          ? (rawKey.slice(0, 6) + '••••••••' + rawKey.slice(-4))
+          : '••••••••••••';
+        el.textContent = masked;
+        if (btn) btn.textContent = '👁️ 显示';
+      }
+    }
+
+    function toggleApiKeyMask() {
+      isApiKeyRevealed = !isApiKeyRevealed;
+      renderApiKeyHint();
+    }
+
+    function copyFullClientApiKey() {
+      const rawKey = poolData.config?.clientApiKey || '';
+      if (!rawKey) return showToast('未配置客户端 API Key', true);
+      copyText(rawKey);
+    }
+
     function showToast(msg, isError = false) {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -877,7 +916,7 @@ export const UI_HTML = `<!DOCTYPE html>
 
       document.getElementById('apiEndpointBase').textContent = window.location.origin + '/v1';
       document.getElementById('apiEndpointSpecific').textContent = window.location.origin + '/' + curGw.id + '/v1';
-      document.getElementById('hintClientApiKey').textContent = config.clientApiKey || '未设置 (免密访问)';
+      renderApiKeyHint();
 
       // 全局配置字段
       document.getElementById('cfgMaxRetries').value = config.maxRetries || 5;
