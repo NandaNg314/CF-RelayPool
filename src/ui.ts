@@ -3,7 +3,7 @@ export const UI_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KeyPool Router - 智能多账号故障转移网关</title>
+  <title>KeyPool Router - 通用多账号故障转移网关</title>
   <style>
     :root {
       --bg: #0b0f19;
@@ -222,7 +222,7 @@ export const UI_HTML = `<!DOCTYPE html>
       background: #151d30;
       border: 1px solid var(--card-border);
       border-radius: 16px;
-      max-width: 640px;
+      max-width: 660px;
       width: 100%;
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
       overflow: hidden;
@@ -249,7 +249,7 @@ export const UI_HTML = `<!DOCTYPE html>
     /* Form Controls */
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-label { font-size: 13px; color: var(--text-muted); }
-    .form-input, .form-textarea {
+    .form-input, .form-textarea, .form-select {
       background: rgba(0,0,0,0.3);
       border: 1px solid var(--card-border);
       border-radius: 8px;
@@ -259,8 +259,10 @@ export const UI_HTML = `<!DOCTYPE html>
       font-family: inherit;
       outline: none;
     }
-    .form-input:focus, .form-textarea:focus { border-color: var(--primary); }
+    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--primary); }
     .form-textarea { resize: vertical; min-height: 120px; font-family: var(--font-mono); font-size: 12px; }
+    .form-select { cursor: pointer; }
+    .form-select option { background: #151d30; color: #fff; }
 
     /* Test Box */
     .chat-box {
@@ -268,7 +270,7 @@ export const UI_HTML = `<!DOCTYPE html>
       border: 1px solid var(--card-border);
       border-radius: 8px;
       padding: 12px;
-      min-height: 160px;
+      min-height: 150px;
       max-height: 240px;
       overflow-y: auto;
       font-size: 13px;
@@ -303,13 +305,13 @@ export const UI_HTML = `<!DOCTYPE html>
         <div class="brand-icon">⚡</div>
         <div>
           <div class="brand-title">KeyPool Router</div>
-          <div class="brand-subtitle">请求级自动故障转移 · 多账号额度池网关</div>
+          <div class="brand-subtitle">通用多账号额度池 · 请求级自动故障转移网关</div>
         </div>
       </div>
       <div class="header-actions" id="headerAuthActions" style="display: none;">
-        <span class="badge badge-active" style="padding: 4px 10px;">🟢 已授权登录</span>
+        <span class="badge badge-active" style="padding: 4px 10px;">🟢 管理员已连接</span>
         <button class="btn btn-sm" onclick="fetchData()">🔄 刷新</button>
-        <button class="btn btn-sm btn-danger" onclick="logout()">🔒 退出</button>
+        <button class="btn btn-sm btn-danger" onclick="logout()">🔒 退出登录</button>
       </div>
     </header>
 
@@ -318,8 +320,8 @@ export const UI_HTML = `<!DOCTYPE html>
       <div class="login-card">
         <div class="login-header">
           <div class="login-icon">🔐</div>
-          <div style="font-size: 18px; font-weight: 700;">管理控制台身份验证</div>
-          <div style="font-size: 13px; color: var(--text-muted);">请输入管理密钥 (Admin Password)</div>
+          <div style="font-size: 18px; font-weight: 700;">控制台身份验证</div>
+          <div style="font-size: 13px; color: var(--text-muted);">请输入管理密钥 (Admin Password) 进入</div>
         </div>
         <div class="form-group">
           <input type="password" id="loginPwdInput" class="form-input" style="padding: 12px; font-size: 14px;" placeholder="请输入管理密码 (sk-...)" autofocus onkeydown="if(event.key==='Enter')doLogin()">
@@ -361,7 +363,7 @@ export const UI_HTML = `<!DOCTYPE html>
           <button class="btn btn-primary" onclick="openModal('importModal')">➕ 批量导入 Key</button>
           <button class="btn btn-success" id="btnProbeAll" onclick="probeAllKeys()">⚡ 一键测活全量</button>
           <button class="btn btn-warning" onclick="reviveAllKeys()">🔄 一键复活已耗尽</button>
-          <button class="btn" onclick="openModal('testModal')">💬 在线连通性测试</button>
+          <button class="btn" onclick="openTestModal()">💬 在线连通性测试</button>
           <button class="btn" onclick="openModal('configModal')">⚙️ 网关配置</button>
         </div>
         <div class="toolbar-right">
@@ -402,8 +404,8 @@ export const UI_HTML = `<!DOCTYPE html>
         <div style="font-size: 13px; color: var(--text-muted); line-height: 1.9;">
           • <strong>API Base URL</strong>: <code class="key-mono" id="apiEndpointBase">https://.../v1</code><br>
           • <strong>API Key (Bearer)</strong>: <code class="key-mono" id="hintClientApiKey" onclick="copyText(this.textContent)">...</code> (点击复制)<br>
-          • <strong>请求级故障转移</strong>: 发送对话时，网关会自动挑选健康的 Key 请求上游。若返回 402/429/点数不足，将在<b>同一次请求内瞬间换号重试</b>，直到成功返回！<br>
-          • <strong>当前配置的上游目标</strong>: <span id="hintTargetBase">...</span> | 默认测试模型: <span id="hintModel">...</span>
+          • <strong>当前上游目标</strong>: <span id="hintTargetBase">...</span> | 默认模型: <span id="hintModel">...</span><br>
+          • <strong>请求级自动故障转移</strong>: 发送对话时，网关自动挑选健康 Key 请求上游。遇到 401/402/429/点数不足时，在<b>同一次请求内毫秒级无缝自动换号重试</b>！
         </div>
       </div>
     </div>
@@ -419,7 +421,7 @@ export const UI_HTML = `<!DOCTYPE html>
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">粘贴 Key 列表 (每行一个，支持直接粘贴或 <code>备注----key</code> / <code>key,备注</code>)</label>
-          <textarea id="importTextarea" class="form-textarea" placeholder="sk-bd0bd5ccb31e...&#10;账号2----sk-778899aa...&#10;sk-11223344...,书生账号3"></textarea>
+          <textarea id="importTextarea" class="form-textarea" placeholder="sk-bd0bd5ccb31e...&#10;账号2----sk-778899aa...&#10;sk-11223344...,测试账号3"></textarea>
         </div>
         <div style="font-size: 12px; color: var(--text-muted);">
           * 重复 Key 会自动跳过或更新备注；导入后默认状态为【活跃】。
@@ -432,21 +434,37 @@ export const UI_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Modal: 网关配置 -->
+  <!-- Modal: 网关配置 (通用化平台支持) -->
   <div class="modal-backdrop" id="configModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">⚙️ 网关系统配置</div>
+        <div class="modal-title">⚙️ 通用网关系统配置</div>
         <button class="btn btn-sm" onclick="closeModal('configModal')">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">上游目标 Base URL</label>
-          <input type="text" id="cfgTargetBase" class="form-input" placeholder="https://discovery-api.intern-ai.org.cn/v1">
+          <label class="form-label">🚀 常见平台快速预设 (可选)</label>
+          <select id="presetSelect" class="form-select" onchange="applyPreset(this.value)">
+            <option value="">-- 选择预设以自动填充，或自行输入任意地址 --</option>
+            <option value="intern">🌟 书生·砚 (https://discovery-api.intern-ai.org.cn/v1)</option>
+            <option value="deepseek">🐳 DeepSeek 官方 (https://api.deepseek.com/v1)</option>
+            <option value="silicon">⚡ 硅基流动 SiliconFlow (https://api.siliconflow.cn/v1)</option>
+            <option value="openrouter">🌐 OpenRouter (https://openrouter.ai/api/v1)</option>
+            <option value="openai">🤖 OpenAI 官方 (https://api.openai.com/v1)</option>
+            <option value="custom">🛠️ 自定义第三方中转站 / 其它兼容平台</option>
+          </select>
         </div>
         <div class="form-group">
-          <label class="form-label">默认探测与测试模型</label>
-          <input type="text" id="cfgDefaultModel" class="form-input" placeholder="deepseek-v4-flash-0731">
+          <label class="form-label">上游目标 Base URL (可填任意 OpenAI 兼容地址)</label>
+          <input type="text" id="cfgTargetBase" class="form-input" placeholder="https://api.deepseek.com/v1 或其它中转站">
+        </div>
+        <div class="form-group">
+          <label class="form-label">默认测活 / 兜底测试模型名称</label>
+          <input type="text" id="cfgDefaultModel" class="form-input" placeholder="例如: deepseek-chat, gpt-4o-mini 等">
+        </div>
+        <div class="form-group">
+          <label class="form-label">自定义模型列表 (供客户端拉取 /v1/models，多个用英文逗号分隔)</label>
+          <input type="text" id="cfgCustomModels" class="form-input" placeholder="例如: deepseek-v4-flash-0731,deepseek-chat,deepseek-reasoner">
         </div>
         <div class="form-group">
           <label class="form-label">单次请求最大故障转移换号次数</label>
@@ -458,7 +476,7 @@ export const UI_HTML = `<!DOCTYPE html>
           <div style="font-size: 11px; color: var(--text-muted);">超过该天数未使用的耗尽 Key 将在轮询时重新作为候选尝试或恢复</div>
         </div>
         <div class="form-group">
-          <label class="form-label">管理面板密码</label>
+          <label class="form-label">管理面板密码 (留空则不修改)</label>
           <input type="password" id="cfgAdminPassword" class="form-input" placeholder="留空不修改，输入新密码覆盖">
         </div>
         <div class="form-group">
@@ -473,7 +491,7 @@ export const UI_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Modal: 在线测试 -->
+  <!-- Modal: 在线测试 (支持自由输入任意测试模型) -->
   <div class="modal-backdrop" id="testModal">
     <div class="modal">
       <div class="modal-header">
@@ -481,6 +499,10 @@ export const UI_HTML = `<!DOCTYPE html>
         <button class="btn btn-sm" onclick="closeModal('testModal')">✕</button>
       </div>
       <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">测试目标模型 (可自由输入任意模型)</label>
+          <input type="text" id="testModelName" class="form-input" placeholder="例如: deepseek-v4-flash-0731, deepseek-chat 等">
+        </div>
         <div class="form-group">
           <label class="form-label">测试提示词</label>
           <input type="text" id="testPrompt" class="form-input" value="你好！请输出一句简短的中文问候。">
@@ -505,6 +527,23 @@ export const UI_HTML = `<!DOCTYPE html>
     let currentFilter = 'all';
     const TOKEN_STORAGE_KEY = 'keypool_admin_key';
 
+    const PRESETS = {
+      intern: { base: 'https://discovery-api.intern-ai.org.cn/v1', model: 'deepseek-v4-flash-0731', list: 'deepseek-v4-flash-0731' },
+      deepseek: { base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', list: 'deepseek-chat,deepseek-reasoner' },
+      silicon: { base: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3', list: 'deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1' },
+      openrouter: { base: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-r1', list: 'deepseek/deepseek-r1,anthropic/claude-3.5-sonnet' },
+      openai: { base: 'https://api.openai.com/v1', model: 'gpt-4o-mini', list: 'gpt-4o,gpt-4o-mini' },
+      custom: { base: '', model: '', list: '' }
+    };
+
+    function applyPreset(val) {
+      if (!val || !PRESETS[val]) return;
+      const p = PRESETS[val];
+      if (p.base) document.getElementById('cfgTargetBase').value = p.base;
+      if (p.model) document.getElementById('cfgDefaultModel').value = p.model;
+      if (p.list) document.getElementById('cfgCustomModels').value = p.list;
+    }
+
     function getAdminKey() {
       return localStorage.getItem(TOKEN_STORAGE_KEY) || '';
     }
@@ -524,6 +563,11 @@ export const UI_HTML = `<!DOCTYPE html>
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    function openTestModal() {
+      document.getElementById('testModelName').value = poolData.config?.defaultModel || 'deepseek-v4-flash-0731';
+      openModal('testModal');
+    }
 
     async function apiReq(path, method = 'GET', body = null) {
       const headers = { 'content-type': 'application/json' };
@@ -638,14 +682,15 @@ export const UI_HTML = `<!DOCTYPE html>
       document.getElementById('countExhausted').textContent = exhaustedCount;
       document.getElementById('countInvalid').textContent = invalidCount;
 
-      document.getElementById('hintTargetBase').textContent = config.targetBase || 'https://discovery-api.intern-ai.org.cn/v1';
-      document.getElementById('hintModel').textContent = config.defaultModel || 'deepseek-v4-flash-0731';
+      document.getElementById('hintTargetBase').textContent = config.targetBase || '未设置';
+      document.getElementById('hintModel').textContent = config.defaultModel || '未设置';
       document.getElementById('apiEndpointBase').textContent = window.location.origin + '/v1';
       document.getElementById('hintClientApiKey').textContent = config.clientApiKey || '未设置 (免密访问)';
 
       // fill config fields
       document.getElementById('cfgTargetBase').value = config.targetBase || '';
       document.getElementById('cfgDefaultModel').value = config.defaultModel || '';
+      document.getElementById('cfgCustomModels').value = config.customModels || '';
       document.getElementById('cfgMaxRetries').value = config.maxRetries || 5;
       document.getElementById('cfgAutoResetDays').value = config.autoResetDays || 7;
       document.getElementById('cfgClientApiKey').value = config.clientApiKey || '';
@@ -798,6 +843,7 @@ export const UI_HTML = `<!DOCTYPE html>
       const body = {
         targetBase: document.getElementById('cfgTargetBase').value.trim(),
         defaultModel: document.getElementById('cfgDefaultModel').value.trim(),
+        customModels: document.getElementById('cfgCustomModels').value.trim(),
         maxRetries: parseInt(document.getElementById('cfgMaxRetries').value, 10) || 5,
         autoResetDays: parseInt(document.getElementById('cfgAutoResetDays').value, 10) || 7,
         clientApiKey: document.getElementById('cfgClientApiKey').value.trim(),
@@ -819,6 +865,7 @@ export const UI_HTML = `<!DOCTYPE html>
       const prompt = document.getElementById('testPrompt').value.trim();
       if (!prompt) return showToast('请输入测试提示词', true);
 
+      const chosenModel = document.getElementById('testModelName').value.trim() || poolData.config?.defaultModel || 'deepseek-chat';
       const out = document.getElementById('testOutput');
       const meta = document.getElementById('testMeta');
       const btn = document.getElementById('btnSendTest');
@@ -839,7 +886,7 @@ export const UI_HTML = `<!DOCTYPE html>
           method: 'POST',
           headers,
           body: JSON.stringify({
-            model: poolData.config?.defaultModel || 'deepseek-v4-flash-0731',
+            model: chosenModel,
             messages: [{ role: 'user', content: prompt }],
             stream: true,
           }),
@@ -849,13 +896,13 @@ export const UI_HTML = `<!DOCTYPE html>
         if (!res.ok) {
           const err = await res.text();
           out.textContent = '❌ 调用失败 (HTTP ' + res.status + '):\\n' + err;
-          meta.textContent = \`耗时: \${Date.now() - startTime}ms\`;
+          meta.textContent = \`测试模型: \${chosenModel} | 耗时: \${Date.now() - startTime}ms\`;
           btn.disabled = false;
           return;
         }
 
         out.textContent = '';
-        meta.textContent = \`调度命中的 Key: \${usedKey} | 状态: 接收流式数据中...\`;
+        meta.textContent = \`测试模型: \${chosenModel} | 调度命中的 Key: \${usedKey} | 状态: 接收流式数据中...\`;
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -880,7 +927,7 @@ export const UI_HTML = `<!DOCTYPE html>
             } catch {}
           }
         }
-        meta.textContent = \`调度命中的 Key: \${usedKey} | 耗时: \${Date.now() - startTime}ms | 完成\`;
+        meta.textContent = \`测试模型: \${chosenModel} | 调度命中的 Key: \${usedKey} | 耗时: \${Date.now() - startTime}ms | 完成\`;
       } catch (e) {
         out.textContent = '❌ 网络异常: ' + e.message;
       } finally {

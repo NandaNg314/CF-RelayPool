@@ -7,6 +7,7 @@ export const DEFAULT_CONFIG: PoolConfig = {
   clientApiKey: '',
   autoResetDays: 7, // 默认 7 天自动尝试复活/重置状态
   maxRetries: 5,
+  customModels: 'deepseek-v4-flash-0731,deepseek-chat,deepseek-reasoner',
 }
 
 const KV_KEYS = 'key_pool_items'

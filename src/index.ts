@@ -311,6 +311,7 @@ export default {
           ...config,
           targetBase: body.targetBase ? body.targetBase.trim() : config.targetBase,
           defaultModel: body.defaultModel ? body.defaultModel.trim() : config.defaultModel,
+          customModels: body.customModels !== undefined ? body.customModels.trim() : config.customModels,
           maxRetries: Number.isFinite(body.maxRetries) ? Math.max(1, body.maxRetries!) : config.maxRetries,
           autoResetDays: Number.isFinite(body.autoResetDays) ? Math.max(1, body.autoResetDays!) : config.autoResetDays,
           clientApiKey: body.clientApiKey !== undefined ? body.clientApiKey.trim() : config.clientApiKey,

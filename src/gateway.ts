@@ -17,6 +17,10 @@ export async function handleChatCompletions(
     })
   }
 
+  if (!body.model && config.defaultModel) {
+    body.model = config.defaultModel
+  }
+
   const keys = await loadKeys(kv)
   if (keys.length === 0) {
     return new Response(
@@ -156,28 +160,31 @@ export async function handleModels(
   const candidate = keys.find((k) => !k.disabled && k.status === 'active') || keys[0]
   const targetBase = config.targetBase.replace(/\/+$/, '')
 
-  if (!candidate) {
-    return new Response(JSON.stringify({ object: 'list', data: [] }), {
-      headers: { 'content-type': 'application/json' },
-    })
+  if (candidate) {
+    try {
+      const res = await fetch(`${targetBase}/models`, {
+        headers: { authorization: `Bearer ${candidate.key.trim()}` },
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (res.ok) {
+        return new Response(res.body, {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' },
+        })
+      }
+    } catch {}
   }
 
-  try {
-    const res = await fetch(`${targetBase}/models`, {
-      headers: { authorization: `Bearer ${candidate.key.trim()}` },
-      signal: AbortSignal.timeout(10_000),
-    })
-    return new Response(res.body, {
-      status: res.status,
-      headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' },
-    })
-  } catch (e) {
-    return new Response(
-      JSON.stringify({
-        object: 'list',
-        data: [{ id: config.defaultModel, object: 'model', owned_by: 'intern-ai' }],
-      }),
-      { headers: { 'content-type': 'application/json' } }
-    )
-  }
+  const rawList = (config.customModels || config.defaultModel || 'deepseek-chat')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean)
+
+  return new Response(
+    JSON.stringify({
+      object: 'list',
+      data: rawList.map((m) => ({ id: m, object: 'model', created: 1700000000, owned_by: 'custom' })),
+    }),
+    { headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' } }
+  )
 }

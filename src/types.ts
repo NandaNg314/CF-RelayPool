@@ -20,6 +20,7 @@ export interface PoolConfig {
   clientApiKey?: string
   autoResetDays: number
   maxRetries: number
+  customModels?: string
 }
 
 export interface Env {
