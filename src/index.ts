@@ -9,6 +9,7 @@ import {
   resolveGateway,
   saveConfig,
   saveKeys,
+  updateKeyStatus,
 } from './pool.js'
 import { handleChatCompletions, handleModels } from './gateway.js'
 import { UI_HTML } from './ui.js'
@@ -59,39 +60,131 @@ function verifyClient(request: Request, config: PoolConfig, env: Env): boolean {
   return authHeader.slice(7).trim() === expected
 }
 
-/** 解析导入文本，智能识别 key 和备注名称 */
-function parseImportLines(text: string): Array<{ key: string; name: string }> {
-  const lines = text.split(/\r?\n/)
-  const results: Array<{ key: string; name: string }> = []
+/** 智能识别字符串是否更符合 API Key 的特征（长度、字符集、sk/eyJ前缀等） */
+function isLikelyKey(str: string): boolean {
+  if (!str) return false
+  const s = str.trim()
+  if (s.startsWith('sk-') || s.startsWith('eyJ') || s.startsWith('Bearer ') || s.startsWith('key-')) {
+    return true
+  }
+  // 含有中文、制表符或换行的肯定不是 Key
+  if (/[\u4e00-\u9fa5\s]/.test(s)) {
+    return false
+  }
+  // 长度符合常见 key 且为纯字母数字下划线减号点
+  if (s.length >= 10 && /^[A-Za-z0-9_.-]+$/.test(s)) {
+    return true
+  }
+  return false
+}
 
+/** 智能解析导入文本，支持 JSON、----、逗号、冒号、制表符Tab、空格等全部格式 */
+export function parseImportLines(text: string): Array<{ key: string; name: string }> {
+  const trimmed = text.trim()
+  if (!trimmed) return []
+
+  const results: Array<{ key: string; name: string }> = []
+  const seenKeys = new Set<string>()
+
+  function addResult(rawKey: string, rawName: string) {
+    let key = rawKey.trim().replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '').trim()
+    let name = rawName.trim().replace(/^["']|["']$/g, '').trim()
+    if (!key || key.length < 6) return
+    if (seenKeys.has(key)) return
+    seenKeys.add(key)
+    if (!name) {
+      name = key.length > 10 ? `Key-${key.slice(0, 4)}...${key.slice(-4)}` : `Key-${key}`
+    }
+    results.push({ key, name })
+  }
+
+  // 1. 尝试直接作为 JSON 解析
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsedJson = JSON.parse(trimmed)
+      if (Array.isArray(parsedJson)) {
+        for (const item of parsedJson) {
+          if (typeof item === 'string') {
+            addResult(item, '')
+          } else if (item && typeof item === 'object') {
+            const obj = item as Record<string, unknown>
+            const k = String(obj.key || obj.apiKey || obj.api_key || obj.token || '')
+            const n = String(obj.name || obj.remark || obj.title || '')
+            if (k) addResult(k, n)
+          }
+        }
+        if (results.length > 0) return results
+      }
+    } catch {}
+  }
+
+  // 2. 按行解析
+  const lines = text.split(/\r?\n/)
   for (let line of lines) {
     line = line.trim()
-    if (!line || line.startsWith('#')) continue
+    if (!line || line.startsWith('#') || line.startsWith('//')) continue
+
+    // 检查该行是否包含了多个用逗号/分号隔开的独立 sk-xxxx 密钥
+    const multiSkMatches = line.match(/sk-[A-Za-z0-9_-]{10,}/g)
+    if (multiSkMatches && multiSkMatches.length > 1) {
+      for (const sk of multiSkMatches) {
+        addResult(sk, '')
+      }
+      continue
+    }
 
     let key = ''
     let name = ''
 
+    // 分隔符判断优先级：---- > 制表符 \t > 逗号 , > 冒号 : / ： > 空格
     if (line.includes('----')) {
       const parts = line.split('----')
-      if (parts[0]?.trim().startsWith('sk-')) {
-        key = parts[0].trim()
-        name = parts.slice(1).join('----').trim()
+      const p1 = parts[0]!.trim()
+      const p2 = parts.slice(1).join('----').trim()
+      if (isLikelyKey(p1) && !isLikelyKey(p2)) {
+        key = p1; name = p2
+      } else if (isLikelyKey(p2) && !isLikelyKey(p1)) {
+        key = p2; name = p1
+      } else if (p1.startsWith('sk-')) {
+        key = p1; name = p2
       } else {
-        name = parts[0].trim()
-        key = parts.slice(1).join('----').trim()
+        key = p2; name = p1
+      }
+    } else if (line.includes('\t')) {
+      const parts = line.split('\t').filter(Boolean)
+      const p1 = parts[0]?.trim() || ''
+      const p2 = parts.slice(1).join(' ').trim()
+      if (isLikelyKey(p1) && !isLikelyKey(p2)) {
+        key = p1; name = p2
+      } else {
+        key = p2; name = p1
       }
     } else if (line.includes(',')) {
       const parts = line.split(',')
-      if (parts[0]?.trim().startsWith('sk-')) {
-        key = parts[0].trim()
-        name = parts.slice(1).join(',').trim()
+      const p1 = parts[0]!.trim()
+      const p2 = parts.slice(1).join(',').trim()
+      if (isLikelyKey(p1) && !isLikelyKey(p2)) {
+        key = p1; name = p2
+      } else if (isLikelyKey(p2) && !isLikelyKey(p1)) {
+        key = p2; name = p1
+      } else if (p1.startsWith('sk-')) {
+        key = p1; name = p2
       } else {
-        name = parts[0].trim()
-        key = parts.slice(1).join(',').trim()
+        key = p1; name = p2
       }
-    } else if (line.includes(' ')) {
+    } else if (line.includes(':') || line.includes('：')) {
+      const sep = line.includes(':') ? ':' : '：'
+      const parts = line.split(sep)
+      const p1 = parts[0]!.trim()
+      const p2 = parts.slice(1).join(sep).trim()
+      if (isLikelyKey(p1) && !isLikelyKey(p2)) {
+        key = p1; name = p2
+      } else {
+        key = p2; name = p1
+      }
+    } else if (/\s+/.test(line)) {
       const parts = line.split(/\s+/)
-      const skIndex = parts.findIndex((p) => p.startsWith('sk-'))
+      const skIndex = parts.findIndex((p) => isLikelyKey(p))
       if (skIndex !== -1) {
         key = parts[skIndex]!
         name = parts.filter((_, i) => i !== skIndex).join(' ')
@@ -103,15 +196,7 @@ function parseImportLines(text: string): Array<{ key: string; name: string }> {
       key = line
     }
 
-    key = key.trim().replace(/^["']|["']$/g, '')
-    name = name.trim().replace(/^["']|["']$/g, '')
-
-    if (key.length >= 8) {
-      if (!name) {
-        name = `Key-${key.slice(0, 4)}...${key.slice(-4)}`
-      }
-      results.push({ key, name })
-    }
+    addResult(key, name)
   }
 
   return results
@@ -142,9 +227,9 @@ export default {
         return jsonResponse({ error: '未授权：管理密码错误或缺失' }, 401)
       }
 
-      // 获取状态与列表
+      // 获取状态与列表（强制读取最新数据，杜绝旧缓存）
       if (pathname === '/admin/api/status' && request.method === 'GET') {
-        const keys = await loadKeys(env.KEY_POOL_KV)
+        const keys = await loadKeys(env.KEY_POOL_KV, true)
         const safeConfig = {
           ...config,
           adminPassword: config.adminPassword || env.ADMIN_PASSWORD ? '******' : '',
@@ -185,7 +270,6 @@ export default {
         }
 
         if (existingIdx !== -1) {
-          // 保留之前拉取的模型列表
           if (!profile.fetchedModels || profile.fetchedModels.length === 0) {
             profile.fetchedModels = config.gateways[existingIdx]?.fetchedModels || []
           }
@@ -218,7 +302,7 @@ export default {
       if (pathname === '/admin/api/gateways/fetch-models' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as { id?: string }
         const gw = resolveGateway(config, body.id)
-        const keys = await loadKeys(env.KEY_POOL_KV)
+        const keys = await loadKeys(env.KEY_POOL_KV, true)
         const candidate = keys.find((k) => (k.gatewayId || 'intern') === gw.id && !k.disabled && k.status === 'active') || keys.find((k) => (k.gatewayId || 'intern') === gw.id)
 
         if (!candidate) {
@@ -240,16 +324,17 @@ export default {
         }
       }
 
-      // 导入 Keys (支持指定 gatewayId)
+      // 导入 Keys (支持指定 gatewayId，强制从 KV 实时拉取最新列表合并追加)
       if (pathname === '/admin/api/keys/import' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as { text?: string; gatewayId?: string }
         if (!body.text) return jsonResponse({ error: '导入文本不能为空' }, 400)
 
         const parsed = parseImportLines(body.text)
-        if (parsed.length === 0) return jsonResponse({ error: '未在文本中解析到有效 Key' }, 400)
+        if (parsed.length === 0) return jsonResponse({ error: '未在文本中解析到有效 Key（Key 需至少 6 位字符）' }, 400)
 
-        const targetGid = body.gatewayId || config.activeGatewayId
-        const keys = await loadKeys(env.KEY_POOL_KV)
+        const targetGid = (body.gatewayId && body.gatewayId !== 'all') ? body.gatewayId : config.activeGatewayId
+        // 关键安全保证：必须 forceFresh 实时从 KV 加载，绝不使用内存陈旧缓存！
+        const keys = await loadKeys(env.KEY_POOL_KV, true)
         let importedCount = 0
         let ignoredCount = 0
 
@@ -257,7 +342,9 @@ export default {
           const existing = keys.find((k) => k.key.trim() === item.key.trim() && (k.gatewayId || 'intern') === targetGid)
           if (existing) {
             ignoredCount++
-            if (item.name && !existing.name) existing.name = item.name
+            if (item.name && (!existing.name || existing.name.startsWith('Key-'))) {
+              existing.name = item.name
+            }
           } else {
             keys.push({
               id: 'k_' + crypto.randomUUID().slice(0, 8),
@@ -274,13 +361,19 @@ export default {
         }
 
         await saveKeys(env.KEY_POOL_KV, keys)
-        return jsonResponse({ ok: true, importedCount, ignoredCount, totalCount: keys.length })
+        return jsonResponse({ ok: true, importedCount, ignoredCount, totalCount: keys.length, gatewayId: targetGid })
       }
 
-      // 测活 Keys (单张或全量)
+      // 测活 Keys (单张或安全分批测活，彻底规避 CF Workers 50 子请求限制)
       if (pathname === '/admin/api/keys/probe' && request.method === 'POST') {
-        const body = (await request.json().catch(() => ({}))) as { id?: string; all?: boolean; gatewayId?: string }
-        const keys = await loadKeys(env.KEY_POOL_KV)
+        const body = (await request.json().catch(() => ({}))) as {
+          id?: string
+          all?: boolean
+          gatewayId?: string
+          offset?: number
+          limit?: number
+        }
+        const keys = await loadKeys(env.KEY_POOL_KV, true)
 
         if (body.id) {
           const keyItem = keys.find((k) => k.id === body.id)
@@ -299,17 +392,28 @@ export default {
         }
 
         if (body.all) {
-          const targetGid = body.gatewayId || config.activeGatewayId
-          const targetKeys = keys.filter((k) => !targetGid || (k.gatewayId || 'intern') === targetGid)
+          const targetGid = body.gatewayId
+          const targetKeys = keys.filter((k) => {
+            if (targetGid && targetGid !== 'all') {
+              return (k.gatewayId || 'intern') === targetGid
+            }
+            return true
+          })
+
+          // 安全分批：每次最多测活 25 个，绝不超出 Cloudflare 50 次 fetch 限制
+          const offset = Math.max(0, body.offset || 0)
+          const limit = Math.min(Math.max(1, body.limit || 25), 30)
+          const batchSlice = targetKeys.slice(offset, offset + limit)
+
           let activeCount = 0
           let exhaustedCount = 0
           let invalidCount = 0
 
-          const batchSize = 3
-          for (let i = 0; i < targetKeys.length; i += batchSize) {
-            const batch = targetKeys.slice(i, i + batchSize)
+          const concurrency = 3
+          for (let i = 0; i < batchSlice.length; i += concurrency) {
+            const chunk = batchSlice.slice(i, i + concurrency)
             await Promise.all(
-              batch.map(async (k) => {
+              chunk.map(async (k) => {
                 if (k.disabled) return
                 const gw = resolveGateway(config, k.gatewayId)
                 const res = await probeKey(k.key, gw.targetBase, gw.defaultModel)
@@ -328,13 +432,30 @@ export default {
             )
           }
 
-          await saveKeys(env.KEY_POOL_KV, keys)
+          // 重新从 KV 加载最新状态再合并，杜绝覆写期间其他实例新增的 Key
+          const freshKeys = await loadKeys(env.KEY_POOL_KV, true)
+          for (const updated of batchSlice) {
+            const found = freshKeys.find((k) => k.id === updated.id)
+            if (found) {
+              found.status = updated.status
+              found.lastCheckedAt = updated.lastCheckedAt
+              found.checkMessage = updated.checkMessage
+              found.failCount = updated.failCount
+            }
+          }
+          await saveKeys(env.KEY_POOL_KV, freshKeys)
+
           return jsonResponse({
             ok: true,
             activeCount,
             exhaustedCount,
             invalidCount,
-            totalChecked: targetKeys.filter((k) => !k.disabled).length,
+            probedInBatch: batchSlice.length,
+            offset,
+            limit,
+            totalKeys: targetKeys.length,
+            hasMore: offset + limit < targetKeys.length,
+            nextOffset: offset + limit,
           })
         }
 
@@ -344,7 +465,7 @@ export default {
       // 复活/重置状态
       if (pathname === '/admin/api/keys/revive' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as { id?: string; all?: boolean; gatewayId?: string }
-        const keys = await loadKeys(env.KEY_POOL_KV)
+        const keys = await loadKeys(env.KEY_POOL_KV, true)
         let revivedCount = 0
 
         if (body.id) {
@@ -360,7 +481,7 @@ export default {
         if (body.all) {
           const targetGid = body.gatewayId
           for (const k of keys) {
-            if (targetGid && (k.gatewayId || 'intern') !== targetGid) continue
+            if (targetGid && targetGid !== 'all' && (k.gatewayId || 'intern') !== targetGid) continue
             if (k.status === 'exhausted') {
               k.status = 'active'
               k.failCount = 0
@@ -375,10 +496,31 @@ export default {
         return jsonResponse({ error: '参数错误' }, 400)
       }
 
+      // 一键清理失效 401 Key
+      if (pathname === '/admin/api/keys/clean-invalid' && request.method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as { gatewayId?: string }
+        let keys = await loadKeys(env.KEY_POOL_KV, true)
+        const initialCount = keys.length
+        const targetGid = body.gatewayId
+
+        keys = keys.filter((k) => {
+          if (targetGid && targetGid !== 'all' && (k.gatewayId || 'intern') !== targetGid) {
+            return true
+          }
+          return k.status !== 'invalid'
+        })
+
+        const deletedCount = initialCount - keys.length
+        if (deletedCount > 0) {
+          await saveKeys(env.KEY_POOL_KV, keys)
+        }
+        return jsonResponse({ ok: true, deletedCount, remainingCount: keys.length })
+      }
+
       // 启用/停用 Key
       if (pathname === '/admin/api/keys/toggle' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as { id?: string }
-        const keys = await loadKeys(env.KEY_POOL_KV)
+        const keys = await loadKeys(env.KEY_POOL_KV, true)
         const keyItem = keys.find((k) => k.id === body.id)
         if (!keyItem) return jsonResponse({ error: '未找到指定 Key' }, 404)
 
@@ -390,7 +532,7 @@ export default {
       // 删除 Key
       if (pathname === '/admin/api/keys/delete' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as { id?: string }
-        let keys = await loadKeys(env.KEY_POOL_KV)
+        let keys = await loadKeys(env.KEY_POOL_KV, true)
         const initialLen = keys.length
         keys = keys.filter((k) => k.id !== body.id)
         if (keys.length === initialLen) return jsonResponse({ error: '未找到指定 Key' }, 404)
@@ -419,7 +561,6 @@ export default {
     }
 
     // ── 3. OpenAI 兼容网关 (/v1/* 或 /:gatewayId/v1/*) ──
-    // 支持路径中指定网关：如 /deepseek/v1/chat/completions 或 /intern/v1/chat/completions
     const matchGatewayPrefix = pathname.match(/^\/([a-zA-Z0-9_-]+)\/v1\/(chat\/completions|models)$/)
     let targetGatewayId: string | undefined
     let subRoute = ''
@@ -454,8 +595,8 @@ export default {
 
   // ── 4. 定时 Cron：自动复活到期的 exhausted Key ──
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    const config = await loadConfig(env.KEY_POOL_KV)
-    const keys = await loadKeys(env.KEY_POOL_KV)
+    const config = await loadConfig(env.KEY_POOL_KV, true)
+    const keys = await loadKeys(env.KEY_POOL_KV, true)
     const resetMs = (config.autoResetDays || 7) * 24 * 60 * 60 * 1000
     const now = Date.now()
 

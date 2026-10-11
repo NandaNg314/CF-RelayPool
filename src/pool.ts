@@ -23,12 +23,13 @@ export const DEFAULT_CONFIG: PoolConfig = {
 const KV_KEYS = 'key_pool_items'
 const KV_CONFIG = 'key_pool_config'
 
+// 短效只读缓存（避免高并发下单节点频繁序列化，但不允许用陈旧数据覆盖写回）
 let memoryKeysCache: { items: KeyItem[]; expiresAt: number } | null = null
 let memoryConfigCache: { config: PoolConfig; expiresAt: number } | null = null
 
-export async function loadConfig(kv: KVNamespace): Promise<PoolConfig> {
+export async function loadConfig(kv: KVNamespace, forceFresh = false): Promise<PoolConfig> {
   const now = Date.now()
-  if (memoryConfigCache && memoryConfigCache.expiresAt > now) {
+  if (!forceFresh && memoryConfigCache && memoryConfigCache.expiresAt > now) {
     return memoryConfigCache.config
   }
   const raw = await kv.get<Partial<PoolConfig>>(KV_CONFIG, 'json')
@@ -49,17 +50,6 @@ export async function loadConfig(kv: KVNamespace): Promise<PoolConfig> {
       }
     }
 
-    // 自动清理此前未使用的占位空网关，确保默认不展示多余标签
-    const placeholderIds = ['deepseek', 'silicon', 'openrouter']
-    if (gateways.some((g) => placeholderIds.includes(g.id))) {
-      const keysRaw = (await kv.get<KeyItem[]>(KV_KEYS, 'json')) || []
-      gateways = gateways.filter((g) => {
-        if (!placeholderIds.includes(g.id)) return true
-        return keysRaw.some((k) => k.gatewayId === g.id) || g.id === raw.activeGatewayId
-      })
-      if (gateways.length === 0) gateways = [...DEFAULT_GATEWAYS]
-    }
-
     config = {
       activeGatewayId: raw.activeGatewayId || gateways[0]?.id || 'intern',
       gateways,
@@ -70,47 +60,75 @@ export async function loadConfig(kv: KVNamespace): Promise<PoolConfig> {
     }
   }
 
-  memoryConfigCache = { config, expiresAt: now + 15_000 }
+  memoryConfigCache = { config, expiresAt: now + 5_000 }
   return config
 }
 
 export async function saveConfig(kv: KVNamespace, config: PoolConfig): Promise<void> {
   await kv.put(KV_CONFIG, JSON.stringify(config))
-  memoryConfigCache = { config, expiresAt: Date.now() + 15_000 }
+  memoryConfigCache = { config, expiresAt: Date.now() + 5_000 }
 }
 
-export async function loadKeys(kv: KVNamespace): Promise<KeyItem[]> {
+/**
+ * 加载所有 Key
+ * @param forceFresh 是否强制跳过内存缓存直接从 KV 实时加载（写操作、导入、删除前必须为 true，防止多实例并发覆写！）
+ */
+export async function loadKeys(kv: KVNamespace, forceFresh = false): Promise<KeyItem[]> {
   const now = Date.now()
-  if (memoryKeysCache && memoryKeysCache.expiresAt > now) {
-    return memoryKeysCache.items
+  if (!forceFresh && memoryKeysCache && memoryKeysCache.expiresAt > now) {
+    // 返回副本防止原地污染
+    return [...memoryKeysCache.items]
   }
+
   const raw = await kv.get<KeyItem[]>(KV_KEYS, 'json')
   const items = Array.isArray(raw) ? raw : []
 
-  // 兼容老数据：如果没有 gatewayId，默认归为 'intern'
+  // 兼容老数据：如果没有 gatewayId，默认归为首个网关或 'intern'
   let modified = false
   for (const k of items) {
     if (!k.gatewayId) {
       k.gatewayId = 'intern'
       modified = true
     }
+    if (k.failCount === undefined) k.failCount = 0
+    if (k.successCount === undefined) k.successCount = 0
   }
+
   if (modified) {
     await kv.put(KV_KEYS, JSON.stringify(items))
   }
 
-  memoryKeysCache = { items, expiresAt: now + 10_000 }
-  return items
+  memoryKeysCache = { items, expiresAt: now + 3_000 }
+  return [...items]
 }
 
+/** 保存所有 Key 到 KV，并刷新当前实例本地缓存 */
 export async function saveKeys(kv: KVNamespace, items: KeyItem[]): Promise<void> {
   await kv.put(KV_KEYS, JSON.stringify(items))
-  memoryKeysCache = { items, expiresAt: Date.now() + 10_000 }
+  memoryKeysCache = { items: [...items], expiresAt: Date.now() + 3_000 }
+}
+
+/** 安全更新单个 Key 的状态（强一致读取最新数据后再写回，杜绝多实例陈旧快照覆盖） */
+export async function updateKeyStatus(
+  kv: KVNamespace,
+  keyId: string,
+  updates: Partial<KeyItem>
+): Promise<void> {
+  try {
+    const freshKeys = await loadKeys(kv, true)
+    const target = freshKeys.find((k) => k.id === keyId)
+    if (target) {
+      Object.assign(target, updates)
+      await saveKeys(kv, freshKeys)
+    }
+  } catch (err) {
+    console.error(`[updateKeyStatus] 更新 Key [${keyId}] 失败:`, err)
+  }
 }
 
 /** 获取指定的网关 Profile，若未指定则获取当前激活的 Profile */
 export function resolveGateway(config: PoolConfig, gatewayId?: string): GatewayProfile {
-  if (gatewayId) {
+  if (gatewayId && gatewayId !== 'all') {
     const found = config.gateways.find((g) => g.id === gatewayId)
     if (found) return found
   }
@@ -119,36 +137,52 @@ export function resolveGateway(config: PoolConfig, gatewayId?: string): GatewayP
   return config.gateways[0] || DEFAULT_GATEWAYS[0]!
 }
 
-/** 智能选号策略：根据 gatewayId 过滤，并优先从活跃池选最久未使用的 Key */
+/** Fisher-Yates 随机打乱数组（用于无状态纯内存负载均衡） */
+function shuffleArray<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const temp = arr[i]!
+    arr[i] = arr[j]!
+    arr[j] = temp
+  }
+  return arr
+}
+
+/**
+ * 智能选号策略：
+ * 采用随机打乱（Fisher-Yates Shuffle）实现高性能、无状态的负载均衡。
+ * 彻底废除“每次请求必须写回 KV 记录 lastUsedAt”的错误机制，
+ * 在大幅提升转发速度的同时，保证 0 KV 写开销、0 并发锁冲突、0 覆写风险！
+ */
 export function pickCandidateKeys(
   keys: KeyItem[],
   config: PoolConfig,
   gatewayId?: string
 ): KeyItem[] {
-  const targetGid = gatewayId || config.activeGatewayId
+  const targetGid = gatewayId && gatewayId !== 'all' ? gatewayId : config.activeGatewayId
   const now = Date.now()
   const resetMs = (config.autoResetDays || 7) * 24 * 60 * 60 * 1000
 
-  // 仅选取匹配该网关的 Key
-  const pool = keys.filter((k) => (k.gatewayId || 'intern') === targetGid)
+  // 1. 筛选归属于该网关且未禁用的候选 Key
+  const pool = keys.filter((k) => (k.gatewayId || 'intern') === targetGid && !k.disabled)
 
-  // 1. 活跃且未被禁用的 Key
-  const activeKeys = pool.filter((k) => !k.disabled && k.status === 'active')
-  activeKeys.sort((a, b) => (a.lastUsedAt || 0) - (b.lastUsedAt || 0))
+  // 2. 活跃可用 Key（随机负载均衡）
+  const activeKeys = pool.filter((k) => k.status === 'active')
+  shuffleArray(activeKeys)
 
-  // 2. 超出自动恢复时间的 exhausted Key（自动复活候选）
+  // 3. 超出自动恢复时间的 exhausted Key（自动复活候选）
   const autoRecoverKeys = pool.filter(
     (k) =>
-      !k.disabled &&
       k.status === 'exhausted' &&
       now - (k.lastCheckedAt || k.lastUsedAt || k.addedAt) > resetMs
   )
-  autoRecoverKeys.sort((a, b) => (a.lastUsedAt || 0) - (b.lastUsedAt || 0))
+  shuffleArray(autoRecoverKeys)
 
-  // 3. 其余 exhausted Key 作为最后兜底
+  // 4. 其余 exhausted Key 作为最后兜底
   const otherExhausted = pool.filter(
-    (k) => !k.disabled && k.status === 'exhausted' && !autoRecoverKeys.includes(k)
+    (k) => k.status === 'exhausted' && !autoRecoverKeys.includes(k)
   )
+  shuffleArray(otherExhausted)
 
   return [...activeKeys, ...autoRecoverKeys, ...otherExhausted]
 }
@@ -221,6 +255,10 @@ export async function probeKey(
 
     if (res.status === 429) {
       return { ok: false, status: 'exhausted', message: '🟡 触发限流 (429)' }
+    }
+
+    if (res.status === 404 || lower.includes('model_not_found') || lower.includes('does not exist')) {
+      return { ok: false, status: 'invalid', message: `🔴 测试模型 [${model}] 不存在或不可用 (404)` }
     }
 
     return { ok: false, status: 'exhausted', message: `HTTP ${res.status}: ${text.slice(0, 80)}` }

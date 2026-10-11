@@ -1,5 +1,5 @@
 import type { KeyItem, PoolConfig, GatewayProfile } from './types.js'
-import { loadKeys, pickCandidateKeys, resolveGateway, saveKeys, saveConfig } from './pool.js'
+import { loadKeys, pickCandidateKeys, resolveGateway, updateKeyStatus, saveConfig } from './pool.js'
 
 /** 根据请求特征解析最匹配的目标网关 Profile */
 export function matchGateway(
@@ -9,14 +9,14 @@ export function matchGateway(
   explicitGatewayId?: string
 ): GatewayProfile {
   // 1. 显式指定的网关 ID (URL 路径参数等)
-  if (explicitGatewayId) {
+  if (explicitGatewayId && explicitGatewayId !== 'all') {
     const found = config.gateways.find((g) => g.id === explicitGatewayId)
     if (found) return found
   }
 
   // 2. 请求头中指定
   const headerGid = request.headers.get('x-gateway')
-  if (headerGid) {
+  if (headerGid && headerGid !== 'all') {
     const found = config.gateways.find((g) => g.id === headerGid)
     if (found) return found
   }
@@ -79,7 +79,6 @@ export async function handleChatCompletions(
   const maxAttempts = Math.min(candidates.length, config.maxRetries || 5)
   const targetBase = gateway.targetBase.replace(/\/+$/, '')
   let lastErrorMsg = '无可用 Key 响应'
-  let keysChanged = false
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const candidate = candidates[attempt]
@@ -97,17 +96,9 @@ export async function handleChatCompletions(
       })
 
       // ── 成功 200 OK ──
+      // 关键架构优化：成功调用纯内存处理，严禁写回全量 KV！
+      // 杜绝多节点写入竞争、杜绝新加 Key 被旧实例覆盖、杜绝打满 KV 写入配额。
       if (upstreamRes.status === 200) {
-        candidate.lastUsedAt = Date.now()
-        candidate.successCount = (candidate.successCount || 0) + 1
-        candidate.status = 'active'
-        keysChanged = true
-
-        if (keysChanged) {
-          const promise = saveKeys(kv, keys)
-          if (ctx) ctx.waitUntil(promise)
-        }
-
         const headers = new Headers(upstreamRes.headers)
         headers.set('x-gateway-id', gateway.id)
         headers.set('x-used-key', `${candidate.name || candidate.id} (${candidate.key.slice(0, 7)}...${candidate.key.slice(-4)})`)
@@ -119,17 +110,21 @@ export async function handleChatCompletions(
         })
       }
 
-      // ── 失败处理与自动换号 ──
+      // ── 失败处理与毫秒级故障转移换号 ──
       const resText = await upstreamRes.text().catch(() => '')
       const lower = resText.toLowerCase()
-      candidate.lastUsedAt = Date.now()
-      candidate.failCount = (candidate.failCount || 0) + 1
 
       if (upstreamRes.status === 401) {
         candidate.status = 'invalid'
         candidate.failReason = '401 无效Key'
         lastErrorMsg = `Key [${candidate.name}] 认证失效 (401)`
-        keysChanged = true
+        if (ctx) {
+          ctx.waitUntil(updateKeyStatus(kv, candidate.id, {
+            status: 'invalid',
+            failReason: '401 无效Key',
+            lastUsedAt: Date.now(),
+          }))
+        }
         continue // 毫秒级换下一个 Key
       }
 
@@ -146,7 +141,13 @@ export async function handleChatCompletions(
         candidate.status = 'exhausted'
         candidate.failReason = `${upstreamRes.status} 额度用尽/限流`
         lastErrorMsg = `Key [${candidate.name}] 额度不足或限流 (${upstreamRes.status})`
-        keysChanged = true
+        if (ctx) {
+          ctx.waitUntil(updateKeyStatus(kv, candidate.id, {
+            status: 'exhausted',
+            failReason: `${upstreamRes.status} 额度用尽/限流`,
+            lastUsedAt: Date.now(),
+          }))
+        }
         continue // 毫秒级换下一个 Key
       }
 
@@ -156,11 +157,6 @@ export async function handleChatCompletions(
       lastErrorMsg = `请求超时或网络异常: ${err instanceof Error ? err.message : String(err)}`
       continue
     }
-  }
-
-  if (keysChanged) {
-    const promise = saveKeys(kv, keys)
-    if (ctx) ctx.waitUntil(promise)
   }
 
   return new Response(
