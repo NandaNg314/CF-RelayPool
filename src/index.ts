@@ -2,6 +2,7 @@ import type { Env, KeyItem, PoolConfig, GatewayProfile } from './types.js'
 import {
   DEFAULT_CONFIG,
   fetchGatewayModels,
+  flushKeyStats,
   loadConfig,
   loadKeys,
   pickCandidateKeys,
@@ -219,6 +220,10 @@ export default {
       return new Response(UI_HTML, { headers })
     }
 
+    if (pathname === '/favicon.ico') {
+      return new Response(null, { status: 204, headers: corsHeaders() })
+    }
+
     const config = await loadConfig(env.KEY_POOL_KV)
 
     // ── 2. 管理 API (/admin/api/*) ──
@@ -229,6 +234,7 @@ export default {
 
       // 获取状态与列表（强制读取最新数据，杜绝旧缓存）
       if (pathname === '/admin/api/status' && request.method === 'GET') {
+        await flushKeyStats(env.KEY_POOL_KV)
         const keys = await loadKeys(env.KEY_POOL_KV, true)
         const safeConfig = {
           ...config,
@@ -580,6 +586,14 @@ export default {
           { error: { message: '未授权：客户端 API Key 无效或缺失', type: 'authentication_error' } },
           401
         )
+      }
+
+      const requestedHeaderGateway = request.headers.get('x-gateway')
+      const requestedGatewayId = targetGatewayId || (requestedHeaderGateway && requestedHeaderGateway !== 'all'
+        ? requestedHeaderGateway
+        : undefined)
+      if (requestedGatewayId && !config.gateways.some((gateway) => gateway.id === requestedGatewayId)) {
+        return jsonResponse({ error: `未找到网关 [${requestedGatewayId}]` }, 404)
       }
 
       if (subRoute === 'chat/completions') {

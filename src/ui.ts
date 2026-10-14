@@ -1,586 +1,967 @@
 export const UI_HTML = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CF-RelayPool - 多网关多账号故障转移中继控制台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230071E3'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'/></svg>">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            apple: {
+              blue: '#0071E3',
+              blueHover: '#0077ED',
+              green: '#30D158',
+              orange: '#FF9F0A',
+              red: '#FF453A',
+              redText: '#FF3B30',
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', '"Inter"', 'sans-serif'],
+            mono: ['"SF Mono"', 'ui-monospace', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
   <style>
     :root {
-      --bg: #0b0f19;
-      --card-bg: rgba(23, 32, 54, 0.75);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
-      --primary: #3b82f6;
-      --primary-hover: #2563eb;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --purple: #8b5cf6;
-      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+      --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
     body {
-      background: radial-gradient(circle at top, #1a233a 0%, var(--bg) 100%);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-sans);
       min-height: 100vh;
-      padding: 24px;
-      line-height: 1.5;
-    }
-    .container { max-width: 1280px; margin: 0 auto; }
-
-    /* Header */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--card-border);
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-icon {
-      width: 42px; height: 42px; border-radius: 12px;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px; font-weight: bold;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-    }
-    .brand-title { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
-    .brand-subtitle { font-size: 12px; color: var(--text-muted); }
-    .header-actions { display: flex; align-items: center; gap: 10px; }
-
-    /* Login View */
-    #loginView {
-      display: none;
-      min-height: 70vh;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .login-card {
-      background: rgba(23, 32, 54, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(20px);
-      border-radius: 20px;
-      padding: 36px;
-      max-width: 420px;
       width: 100%;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .login-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .login-icon {
-      width: 56px; height: 56px; border-radius: 16px;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 28px; margin-bottom: 6px;
-      box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
+      overflow-x: hidden;
+      transition: background-color 0.15s ease, color 0.15s ease;
     }
 
-    /* Gateway Nav Tabs */
-    .gateway-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-      flex-wrap: wrap;
-    }
-    .gateway-tabs {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 4px;
-      max-width: 100%;
-    }
-    .gw-tab {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--card-border);
-      border-radius: 10px;
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      white-space: nowrap;
-      transition: all 0.2s ease;
-    }
-    .gw-tab:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
-    .gw-tab.active {
-      background: rgba(59, 130, 246, 0.2);
-      border-color: rgba(59, 130, 246, 0.5);
-      color: #93c5fd;
-      font-weight: 600;
-    }
-    .gw-badge {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 2px 7px;
-      border-radius: 9999px;
-      font-size: 11px;
-    }
-
-    /* Current Gateway Info Banner */
-    .gw-banner {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      backdrop-filter: blur(12px);
-      border-radius: 12px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 14px;
-    }
-    .gw-banner-left { display: flex; flex-direction: column; gap: 4px; }
-    .gw-banner-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .gw-banner-sub { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .gw-banner-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-    /* Model Tags Container */
-    .models-bar {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      font-size: 12px;
-    }
-    .model-tag {
-      background: rgba(139, 92, 246, 0.15);
-      border: 1px solid rgba(139, 92, 246, 0.3);
-      color: #c4b5fd;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      cursor: pointer;
-    }
-    .model-tag:hover { background: rgba(139, 92, 246, 0.25); }
-
-    /* Cards */
-    .grid-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    .stat-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      backdrop-filter: blur(12px);
-      border-radius: 12px;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .stat-title { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .stat-value { font-size: 28px; font-weight: 700; }
-    .stat-desc { font-size: 12px; color: var(--text-muted); }
-
-    /* Action Toolbar */
-    .toolbar {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      backdrop-filter: blur(12px);
-      border-radius: 12px;
-      padding: 14px 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-    .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-    /* Buttons */
+    /* macOS Physical Button (0ms pointerdown response) */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 13px;
       font-weight: 500;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.2s ease;
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text);
-    }
-    .btn:hover { background: rgba(255, 255, 255, 0.14); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-success { background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
-    .btn-success:hover { background: rgba(16, 185, 129, 0.3); }
-    .btn-purple { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border-color: rgba(139, 92, 246, 0.3); }
-    .btn-purple:hover { background: rgba(139, 92, 246, 0.3); }
-    .btn-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
-    .btn-warning:hover { background: rgba(245, 158, 11, 0.3); }
-    .btn-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
-    .btn-sm { padding: 4px 8px; font-size: 11px; border-radius: 6px; }
-
-    /* Filter Tabs */
-    .tabs { display: flex; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 3px; gap: 2px; }
-    .tab {
-      padding: 6px 12px;
       font-size: 12px;
+      height: 28px;
+      padding: 0 11px;
       border-radius: 6px;
       cursor: pointer;
-      color: var(--text-muted);
-      border: none;
-      background: transparent;
+      user-select: none;
+      white-space: nowrap;
+      transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .tab.active { background: rgba(255,255,255,0.1); color: var(--text); font-weight: 600; }
+    .btn:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    .btn-sm {
+      height: 24px;
+      padding: 0 8px;
+      font-size: 11px;
+      border-radius: 5px;
+    }
 
-    /* Table */
-    .table-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      backdrop-filter: blur(12px);
-      border-radius: 12px;
-      overflow: hidden;
-      margin-bottom: 24px;
+    /* Primary Accent Button */
+    .btn-primary {
+      background: #0071E3;
+      border: 1px solid rgba(0, 113, 227, 0.9);
+      color: #FFFFFF !important;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.25);
     }
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-    th {
-      background: rgba(0, 0, 0, 0.25);
-      padding: 12px 16px;
-      color: var(--text-muted);
-      font-weight: 600;
+    .btn-primary:hover:not(:disabled) {
+      background: #0077ED;
+      border-color: #0077ED;
+    }
+
+    /* Secondary Native Mac Button */
+    .btn-secondary {
+      background: #FFFFFF;
+      color: #1D1D1F;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #F9F9FB;
+      border-color: rgba(0, 0, 0, 0.14);
+    }
+    html.dark .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: #E5E5E7;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+    html.dark .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+    }
+
+    /* Danger Button */
+    .btn-danger-subtle {
+      background: #FFFFFF;
+      color: #FF3B30;
+      border: 1px solid rgba(255, 59, 48, 0.2);
+    }
+    .btn-danger-subtle:hover:not(:disabled) {
+      background: rgba(255, 59, 48, 0.06);
+      border-color: rgba(255, 59, 48, 0.35);
+    }
+    html.dark .btn-danger-subtle {
+      background: rgba(255, 255, 255, 0.03);
+      color: #FF453A;
+      border: 1px solid rgba(255, 69, 58, 0.25);
+    }
+    html.dark .btn-danger-subtle:hover:not(:disabled) {
+      background: rgba(255, 69, 58, 0.1);
+      border-color: rgba(255, 69, 58, 0.45);
+    }
+
+    /* Forms */
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      border-radius: 6px;
       font-size: 12px;
-      border-bottom: 1px solid var(--card-border);
+      padding: 5px 9px;
+      outline: none;
+      transition: all 0.15s ease;
     }
-    td { padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
-    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+    html.dark .form-input, html.dark .form-select, html.dark .form-textarea {
+      background: #18181B;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #F5F5F7;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+    html.dark .form-input:focus, html.dark .form-select:focus, html.dark .form-textarea:focus {
+      border-color: #0071E3;
+      box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
+    }
+    html:not(.dark) .form-input, html:not(.dark) .form-select, html:not(.dark) .form-textarea {
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      color: #1D1D1F;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    html:not(.dark) .form-input:focus, html:not(.dark) .form-select:focus, html:not(.dark) .form-textarea:focus {
+      border-color: #0071E3;
+      box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+    }
+    .form-textarea {
+      resize: vertical;
+      font-family: var(--font-mono);
+      min-height: 120px;
+      line-height: 1.5;
+    }
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    html.dark .form-label { color: #A1A1A6; }
+    html:not(.dark) .form-label { color: #6E6E73; }
+    .form-group { margin-bottom: 12px; }
 
-    /* Pagination Bar */
-    .pagination-bar {
-      display: flex;
-      justify-content: space-between;
+    /* macOS Segmented Filter Control (Toolbar) */
+    .tabs {
+      display: inline-flex;
       align-items: center;
-      padding: 12px 16px;
-      background: rgba(0, 0, 0, 0.2);
-      border-top: 1px solid var(--card-border);
-      font-size: 12px;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-      gap: 10px;
+      padding: 2px;
+      border-radius: 6px;
+      gap: 1px;
+      user-select: none;
     }
-    .pagination-controls { display: flex; align-items: center; gap: 6px; }
+    html.dark .tabs {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    html:not(.dark) .tabs {
+      background: #EAEAEF;
+      border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+    .tab {
+      background: transparent;
+      border: none;
+      font-size: 11px;
+      font-weight: 500;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    html.dark .tab { color: #8E8E93; }
+    html.dark .tab:hover { color: #F5F5F7; }
+    html.dark .tab.active {
+      background: #27272A;
+      color: #FFFFFF;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      font-weight: 600;
+    }
+    html:not(.dark) .tab { color: #6E6E73; }
+    html:not(.dark) .tab:hover { color: #1D1D1F; }
+    html:not(.dark) .tab.active {
+      background: #FFFFFF;
+      color: #1D1D1F;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      font-weight: 600;
+    }
+
+    /* macOS Sidebar Gateway Nav Items */
+    .gateway-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: 100%;
+      user-select: none;
+    }
+    .gw-tab {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      height: 30px;
+      padding: 0 9px;
+      border-radius: 6px;
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.12s ease;
+      white-space: nowrap;
+    }
+    html.dark .gw-tab { color: #A1A1A6; }
+    html.dark .gw-tab:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #F5F5F7;
+    }
+    html.dark .gw-tab.active {
+      background: #0071E3;
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0, 113, 227, 0.3);
+    }
+    html:not(.dark) .gw-tab { color: #515154; }
+    html:not(.dark) .gw-tab:hover {
+      background: rgba(0, 0, 0, 0.04);
+      color: #1D1D1F;
+    }
+    html:not(.dark) .gw-tab.active {
+      background: #0071E3;
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0, 113, 227, 0.2);
+    }
+    .gw-badge {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 1px 5px;
+      border-radius: 10px;
+    }
+    html.dark .gw-badge { background: rgba(255, 255, 255, 0.08); color: #A1A1A6; }
+    html.dark .gw-tab.active .gw-badge { background: rgba(255, 255, 255, 0.25); color: #FFFFFF; }
+    html:not(.dark) .gw-badge { background: #E5E5EA; color: #6E6E73; }
+    html:not(.dark) .gw-tab.active .gw-badge { background: rgba(255, 255, 255, 0.3); color: #FFFFFF; }
 
     /* Badges */
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 8px;
-      border-radius: 9999px;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 5px;
+      user-select: none;
+      white-space: nowrap;
     }
-    .badge-active { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
-    .badge-exhausted { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
-    .badge-invalid { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
-    .badge-disabled { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.25); }
-    .badge-active-gw { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
-    .badge-gw-tag { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.35); font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+    .badge-active {
+      background: rgba(48, 209, 88, 0.12);
+      color: #248A3D;
+    }
+    html.dark .badge-active { color: #30D158; }
+    .badge-exhausted {
+      background: rgba(255, 159, 10, 0.12);
+      color: #B26A00;
+    }
+    html.dark .badge-exhausted { color: #FF9F0A; }
+    .badge-invalid {
+      background: rgba(255, 69, 58, 0.12);
+      color: #D70015;
+    }
+    html.dark .badge-invalid { color: #FF453A; }
+    .badge-disabled {
+      background: rgba(142, 142, 147, 0.12);
+      color: #8E8E93;
+    }
+    .badge-active-gw {
+      background: rgba(0, 113, 227, 0.1);
+      color: #0071E3;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 5px;
+    }
+    html.dark .badge-active-gw {
+      background: rgba(10, 132, 255, 0.18);
+      color: #0A84FF;
+    }
+    .badge-gw-tag {
+      background: rgba(142, 142, 147, 0.1);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      transition: all 0.12s;
+    }
+    html.dark .badge-gw-tag { color: #A1A1A6; }
+    html.dark .badge-gw-tag:hover { background: rgba(10, 132, 255, 0.18); color: #0A84FF; }
+    html:not(.dark) .badge-gw-tag { color: #6E6E73; }
+    html:not(.dark) .badge-gw-tag:hover { background: rgba(0, 113, 227, 0.12); color: #0071E3; }
 
+    /* Key Monospace Pill */
     .key-mono {
       font-family: var(--font-mono);
-      background: rgba(0,0,0,0.3);
-      padding: 3px 6px;
+      font-size: 11px;
+      padding: 2px 6px;
       border-radius: 4px;
       cursor: pointer;
-      user-select: all;
+      transition: all 0.12s;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    html.dark .key-mono {
+      background: rgba(255, 255, 255, 0.05);
+      color: #E5E5E7;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    html.dark .key-mono:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #0A84FF;
+      border-color: rgba(10, 132, 255, 0.4);
+    }
+    html:not(.dark) .key-mono {
+      background: #F0F0F2;
+      color: #1D1D1F;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    html:not(.dark) .key-mono:hover {
+      background: #E5E5EA;
+      color: #0071E3;
     }
 
-    /* Modal */
-    .modal-backdrop {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      z-index: 100;
-      justify-content: center;
+    /* Model Pill Tags */
+    .model-tag {
+      display: inline-flex;
       align-items: center;
-      padding: 16px;
+      gap: 3px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.12s;
+      white-space: nowrap;
     }
-    .modal-backdrop.active { display: flex; }
-    .modal {
-      background: #151d30;
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      max-width: 660px;
+    html.dark .model-tag {
+      background: rgba(255, 255, 255, 0.06);
+      color: #D1D1D6;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    html.dark .model-tag:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #FFFFFF;
+    }
+    html:not(.dark) .model-tag {
+      background: #F0F0F2;
+      color: #48484A;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    html:not(.dark) .model-tag:hover {
+      background: #E5E5EA;
+      color: #1D1D1F;
+    }
+
+    /* High Precision Table */
+    .table-container {
       width: 100%;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+      text-align: left;
+    }
+    th {
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 14px;
+      white-space: nowrap;
+      user-select: none;
+    }
+    html.dark th {
+      background: rgba(255, 255, 255, 0.02);
+      color: #8E8E93;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    html:not(.dark) th {
+      background: #FAFAFC;
+      color: #86868B;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    td {
+      padding: 8px 14px;
+      vertical-align: middle;
+      white-space: nowrap;
+      transition: background-color 0.1s;
+    }
+    html.dark td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #EDEDEF;
+    }
+    html.dark tbody tr:hover td {
+      background: rgba(255, 255, 255, 0.035);
+    }
+    html:not(.dark) td {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+      color: #1D1D1F;
+    }
+    html:not(.dark) tbody tr:hover td {
+      background: #F6F6F8;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Modal Sheet Backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 6vh;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 999;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+    html.dark .modal-backdrop { background: rgba(0, 0, 0, 0.65); }
+    html:not(.dark) .modal-backdrop { background: rgba(0, 0, 0, 0.35); }
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal {
+      border-radius: 12px;
+      width: 100%;
+      max-width: 500px;
+      transform: translateY(-20px) scale(0.98);
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      max-height: 85vh;
+    }
+    html.dark .modal {
+      background: #1C1C1F;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    html:not(.dark) .modal {
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+    .modal-backdrop.active .modal {
+      transform: translateY(0) scale(1);
     }
     .modal-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--card-border);
+      padding: 12px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .modal-title { font-size: 16px; font-weight: 600; }
-    .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; max-height: 70vh; overflow-y: auto; }
+    html.dark .modal-header { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+    html:not(.dark) .modal-header { border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
+    .modal-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+    }
+    .modal-body {
+      padding: 16px;
+      overflow-y: auto;
+      flex: 1;
+    }
     .modal-footer {
-      padding: 14px 20px;
-      border-top: 1px solid var(--card-border);
+      padding: 11px 16px;
       display: flex;
       justify-content: flex-end;
-      gap: 10px;
+      gap: 8px;
+    }
+    html.dark .modal-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      background: #161619;
+    }
+    html:not(.dark) .modal-footer {
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      background: #FAFAFC;
     }
 
-    /* Form Controls */
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-label { font-size: 13px; color: var(--text-muted); }
-    .form-input, .form-textarea, .form-select {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      color: var(--text);
-      padding: 10px 12px;
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
-    }
-    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--primary); }
-    .form-textarea { resize: vertical; min-height: 120px; font-family: var(--font-mono); font-size: 12px; }
-    .form-select { cursor: pointer; }
-    .form-select option { background: #151d30; color: #fff; }
-
-    /* Test Box */
-    .chat-box {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 12px;
-      min-height: 150px;
-      max-height: 240px;
-      overflow-y: auto;
-      font-size: 13px;
-      white-space: pre-wrap;
-    }
-
-    /* Toast */
+    /* macOS Center-Top Dynamic HUD Toast */
     #toast {
       position: fixed;
-      bottom: 24px;
-      right: 24px;
-      padding: 10px 18px;
-      border-radius: 8px;
-      font-size: 13px;
-      background: #1f2937;
-      color: #fff;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.4);
-      border: 1px solid var(--card-border);
-      z-index: 200;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-12px) scale(0.95);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 9999;
       opacity: 0;
-      transform: translateY(10px);
-      transition: all 0.25s ease;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       pointer-events: none;
+      max-width: 440px;
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    #toast.show { opacity: 1; transform: translateY(0); }
+    html.dark #toast {
+      background: rgba(30, 30, 34, 0.94);
+      backdrop-filter: blur(20px);
+      color: #FFFFFF;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+    html:not(.dark) #toast {
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(20px);
+      color: #1D1D1F;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+
+    .chat-box {
+      border-radius: 6px;
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      min-height: 100px;
+      max-height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    html.dark .chat-box {
+      background: #111113;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #F5F5F7;
+    }
+    html:not(.dark) .chat-box {
+      background: #F4F4F6;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      color: #1D1D1F;
+    }
   </style>
 </head>
-<body>
-  <div class="container">
-    <header>
-      <div class="brand">
-        <div class="brand-icon">⚡</div>
-        <div>
-          <div class="brand-title">CF-RelayPool</div>
-          <div class="brand-subtitle">多网关多平台额度池 · 请求级毫秒故障转移中继网关</div>
-        </div>
-      </div>
-      <div class="header-actions" id="headerAuthActions" style="display: none;">
-        <span class="badge badge-active" style="padding: 4px 10px;">🟢 已连接</span>
-        <button class="btn btn-sm" onclick="fetchData()">🔄 刷新</button>
-        <button class="btn btn-sm btn-danger" onclick="logout()">🔒 退出登录</button>
-      </div>
-    </header>
+<body class="bg-[#F5F5F7] dark:bg-[#09090B] text-[#1D1D1F] dark:text-[#EDEDEF] antialiased selection:bg-[#0071E3]/20 selection:text-[#0071E3]">
 
-    <!-- 1. 登录视图 -->
-    <div id="loginView">
-      <div class="login-card">
-        <div class="login-header">
-          <div class="login-icon">🔐</div>
-          <div style="font-size: 18px; font-weight: 700;">控制台身份验证</div>
-          <div style="font-size: 13px; color: var(--text-muted);">请输入管理密钥 (Admin Password) 进入</div>
-        </div>
-        <div class="form-group">
-          <input type="password" id="loginPwdInput" class="form-input" style="padding: 12px; font-size: 14px;" placeholder="请输入管理密码 (sk-...)" autofocus onkeydown="if(event.key==='Enter')doLogin()">
-        </div>
-        <button class="btn btn-primary" style="padding: 12px; font-size: 14px; font-weight: 600;" onclick="doLogin()">🚀 验证并进入控制台</button>
-        <div id="loginError" style="font-size: 12px; color: var(--danger); text-align: center; display: none;"></div>
+  <!-- 全屏 Web App 顶栏 (Sticky Header) -->
+  <header class="sticky top-0 z-30 h-12 w-full backdrop-blur-xl saturate-180 bg-white/80 dark:bg-[#121215]/80 border-b border-black/[0.06] dark:border-white/[0.07] px-4 flex items-center justify-between select-none">
+    <!-- 左侧 Logo + 标题 + CORE 标识 -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-semibold text-[11px] shadow-xs">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">CF-RelayPool</span>
+        <span class="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded bg-black/[0.05] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-400 font-medium">CORE</span>
       </div>
     </div>
 
-    <!-- 2. 主控制台视图 -->
-    <div id="appView" style="display: none;">
-      <!-- 网关切换标签栏 -->
-      <div class="gateway-bar">
-        <div class="gateway-tabs" id="gatewayTabs">
-          <!-- 动态渲染网关选项卡 (包含全部网关选项) -->
+    <!-- 中间纯净说明 -->
+    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono hidden md:block">
+      多网关故障转移中继控制台
+    </div>
+
+    <!-- 右侧功能控制簇 -->
+    <div class="flex items-center gap-2">
+      <button class="btn btn-sm btn-secondary p-1 h-7 w-7" onclick="toggleTheme()" id="themeToggleBtn" title="切换深浅主题">
+        <span id="themeToggleIcon" class="flex items-center">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </span>
+      </button>
+
+      <div class="header-actions flex items-center gap-1.5" id="headerAuthActions" style="display: none;">
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          已连接
+        </span>
+        <button class="btn btn-sm btn-secondary" onclick="fetchData()">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
+          </svg>
+          刷新
+        </button>
+        <button class="btn btn-sm btn-danger-subtle" onclick="logout()">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          退出
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 全屏应用主体布局 -->
+  <div class="w-full flex-1 flex flex-col min-h-[calc(100vh-48px)]">
+
+    <!-- 1. 登录视图 (居中浮窗) -->
+    <div id="loginView" class="flex-1 flex items-center justify-center p-6" style="display: none;">
+      <div class="rounded-xl bg-white dark:bg-[#141417] border border-black/[0.08] dark:border-white/[0.08] shadow-sm max-w-sm w-full p-6 space-y-4">
+        <div class="text-center space-y-1.5">
+          <div class="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center mx-auto shadow-xs mb-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h2 class="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">控制台身份验证</h2>
+          <p class="text-[11px] text-zinc-500 dark:text-zinc-400">请输入管理员密码 (Admin Password)</p>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-sm btn-primary" onclick="openNewGatewayModal()">➕ 添加网关</button>
-          <button class="btn btn-sm" onclick="openModal('globalConfigModal')">⚙️ 全局设置</button>
+
+        <div class="space-y-3 pt-1">
+          <div class="form-group mb-0">
+            <input type="password" id="loginPwdInput" class="form-input text-xs py-2" placeholder="请输入管理密码 (sk-...)" autofocus onkeydown="if(event.key==='Enter')doLogin()">
+          </div>
+          <button class="btn btn-primary w-full text-xs font-medium" onclick="doLogin()">进入控制台</button>
+          <div id="loginError" class="text-xs text-red-500 text-center font-medium bg-red-500/10 py-1.5 px-2.5 rounded" style="display: none;"></div>
         </div>
       </div>
+    </div>
 
-      <!-- 当前选中网关的详情与模型展示条 -->
-      <div class="gw-banner">
-        <div class="gw-banner-left">
-          <div class="gw-banner-title">
-            <span id="curGwName">网关名称</span>
-            <span id="curGwDefaultBadge"></span>
-          </div>
-          <div class="gw-banner-sub">
-            <span>上游 Base: <code class="key-mono" id="curGwBase">...</code></span>
-            <span>默认模型: <b id="curGwModel">...</b></span>
-            <span>专属路由: <code class="key-mono" id="curGwRoute">...</code></span>
-          </div>
-          <!-- 探测到的可用模型列表 -->
-          <div class="models-bar">
-            <span style="color: var(--text-muted); font-weight: 600;">🎯 可用模型 (点击测试):</span>
-            <div id="curGwModelTags" style="display: inline-flex; gap: 6px; flex-wrap: wrap;"></div>
-          </div>
-        </div>
-        <div class="gw-banner-actions">
-          <button class="btn btn-sm btn-purple" id="btnFetchModels" onclick="fetchCurrentGatewayModels()">🔄 重新获取上游模型</button>
-          <button class="btn btn-sm" id="btnSetAsDefault" onclick="setCurrentAsDefault()">⭐ 设为主网关</button>
-          <button class="btn btn-sm" id="btnEditGw" onclick="openEditGatewayModal()">✏️ 编辑网关</button>
-          <button class="btn btn-sm btn-danger" id="btnDeleteGw" onclick="deleteCurrentGateway()">🗑️ 删除</button>
-        </div>
-      </div>
+    <!-- 2. 全屏 Master-Detail 工作区 (左侧边栏贴边，右侧自适应撑满) -->
+    <div id="appView" class="flex-1 flex flex-col md:flex-row w-full min-h-0" style="display: none;">
 
-      <!-- Stats -->
-      <div class="grid-stats">
-        <div class="stat-card">
-          <div class="stat-title">🟢 活跃可用 Key</div>
-          <div class="stat-value" id="statActive">0</div>
-          <div class="stat-desc">可立即提供服务的 Key 数量</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-title">🟡 额度耗尽 / 限流</div>
-          <div class="stat-value" id="statExhausted">0</div>
-          <div class="stat-desc">点数或额度耗尽，可一键复活</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-title">🔴 失效 / 认证错误</div>
-          <div class="stat-value" id="statInvalid">0</div>
-          <div class="stat-desc">上游返回 401，可一键清理</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-title">📊 当前视图 Key 总数</div>
-          <div class="stat-value" id="statTotalKeys">0</div>
-          <div class="stat-desc" id="statDesc">所有状态汇总</div>
-        </div>
-      </div>
+      <!-- ── 左侧边栏 (Sidebar: w-60) ── -->
+      <aside class="w-full md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-black/[0.06] dark:border-white/[0.07] bg-white dark:bg-[#121215] flex flex-col justify-between p-3 select-none">
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between px-2 pt-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-400 dark:text-zinc-500">
+            <span>网关目录</span>
+            <span class="text-[10px] font-mono">GATEWAYS</span>
+          </div>
 
-      <!-- Toolbar -->
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <button class="btn btn-primary" onclick="openImportModal()">➕ 导入 Key</button>
-          <button class="btn btn-success" id="btnProbeAll" onclick="probeAllKeys()">⚡ 安全批量测活</button>
-          <button class="btn btn-warning" onclick="reviveAllKeys()">🔄 一键复活已耗尽</button>
-          <button class="btn btn-danger" onclick="cleanInvalidKeys()">🧹 清理失效(401)</button>
-          <button class="btn btn-purple" onclick="openExportModal()">📋 导出备份</button>
-          <button class="btn" onclick="openTestModal()">💬 在线对话测试</button>
-        </div>
-        <div class="toolbar-right">
-          <input type="text" id="searchKeyInput" class="form-input" placeholder="🔍 搜索 Key 或备注..." style="padding: 6px 12px; font-size: 12px; width: 180px;" oninput="handleSearch(this.value)">
-          <div class="tabs">
-            <button class="tab active" onclick="setFilter('all', this)">全部 (<span id="countAll">0</span>)</button>
-            <button class="tab" onclick="setFilter('active', this)">活跃 (<span id="countActive">0</span>)</button>
-            <button class="tab" onclick="setFilter('exhausted', this)">耗尽 (<span id="countExhausted">0</span>)</button>
-            <button class="tab" onclick="setFilter('invalid', this)">失效 (<span id="countInvalid">0</span>)</button>
-            <button class="tab" onclick="setFilter('disabled', this)">已停用 (<span id="countDisabled">0</span>)</button>
+          <!-- 垂直网关项列表 -->
+          <div class="gateway-tabs" id="gatewayTabs">
+            <!-- 动态渲染网关选项卡 (包含全部网关选项) -->
           </div>
         </div>
-      </div>
 
-      <!-- Key Table -->
-      <div class="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 100px;">状态</th>
-              <th id="thGatewayCol" style="width: 120px; display: none;">归属网关</th>
-              <th>名称 / 备注</th>
-              <th>Key 凭证 (点击复制)</th>
-              <th style="width: 110px;">成功 / 失败</th>
-              <th style="width: 140px;">最后调度</th>
-              <th>健康检查说明</th>
-              <th style="width: 200px; text-align: right;">操作</th>
-            </tr>
-          </thead>
-          <tbody id="keysTableBody">
-            <tr>
-              <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 36px;">加载数据中...</td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- 边栏底栏操作 -->
+        <div class="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] space-y-1">
+          <button class="btn btn-sm btn-primary w-full justify-start text-xs font-medium" onclick="openNewGatewayModal()">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            添加网关
+          </button>
+          <button class="btn btn-sm btn-secondary w-full justify-start text-xs font-medium" onclick="openModal('globalConfigModal')">
+            <svg class="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            全局设置
+          </button>
+        </div>
+      </aside>
 
-        <!-- 分页控制栏 -->
-        <div class="pagination-bar">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span>每页展示:</span>
-            <select id="pageSizeSelect" class="form-select" style="padding: 3px 8px; font-size: 12px;" onchange="changePageSize(this.value)">
-              <option value="15">15 条</option>
-              <option value="30">30 条</option>
-              <option value="50">50 条</option>
-              <option value="100">100 条</option>
-              <option value="99999">全部展示</option>
-            </select>
-            <span id="pageTotalInfo">共 0 条</span>
+      <!-- ── 右侧主内容区 (自适应铺满全宽) ── -->
+      <main class="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 space-y-4 bg-zinc-50/60 dark:bg-[#0A0A0C]/90">
+
+        <!-- 1. 网关详情与参数条 (Inspector Strip) -->
+        <div class="rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="space-y-2 flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="curGwName" class="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">网关名称</span>
+              <span id="curGwDefaultBadge"></span>
+              <div class="flex items-center gap-3 text-zinc-500 dark:text-zinc-400 font-mono text-[11px] ml-2">
+                <span>上游: <code class="key-mono" id="curGwBase">...</code></span>
+                <span>默认模型: <b id="curGwModel" class="text-zinc-700 dark:text-zinc-200">...</b></span>
+                <span>专属路由: <code class="key-mono" id="curGwRoute">...</code></span>
+              </div>
+            </div>
+
+            <!-- 可用模型列表：改用 flex flex-wrap 流式换行，彻底消除 Windows 灰色横向滚动条 -->
+            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+              <span class="text-zinc-400 text-[11px] whitespace-nowrap">可用模型:</span>
+              <div id="curGwModelTags" class="inline-flex gap-1.5 flex-wrap items-center"></div>
+            </div>
           </div>
-          <div class="pagination-controls">
-            <button class="btn btn-sm" id="btnFirstPage" onclick="goToPage(1)">⏮ 首页</button>
-            <button class="btn btn-sm" id="btnPrevPage" onclick="prevPage()">◀ 上一页</button>
-            <span style="margin: 0 4px;">第 <strong id="curPageNum">1</strong> / <strong id="totalPageNum">1</strong> 页</span>
-            <button class="btn btn-sm" id="btnNextPage" onclick="nextPage()">下一页 ▶</button>
-            <button class="btn btn-sm" id="btnLastPage" onclick="goToLastPage()">末页 ⏭</button>
+
+          <!-- 网关操作按钮 -->
+          <div class="flex items-center gap-1.5 shrink-0 self-start">
+            <button class="btn btn-sm btn-secondary" id="btnFetchModels" onclick="fetchCurrentGatewayModels()">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+              </svg>
+              探测模型
+            </button>
+            <button class="btn btn-sm btn-secondary" id="btnSetAsDefault" onclick="setCurrentAsDefault()">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              设为主网关
+            </button>
+            <button class="btn btn-sm btn-secondary" id="btnEditGw" onclick="openEditGatewayModal()">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              编辑
+            </button>
+            <button class="btn btn-sm btn-danger-subtle" id="btnDeleteGw" onclick="deleteCurrentGateway()">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              删除
+            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Integration Hint -->
-      <div class="stat-card" style="margin-top: 16px;">
-        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">💡 客户端多网关接入方式 (OpenAI 兼容协议)</div>
-        <div style="font-size: 13px; color: var(--text-muted); line-height: 2.0;">
-          • <strong>通用全局入口</strong>: <code class="key-mono" id="apiEndpointBase">https://.../v1</code> (自动调用主网关，或根据客户端请求的 model 自动路由！)<br>
-          • <strong>指定网关入口</strong>: <code class="key-mono" id="apiEndpointSpecific">https://.../{id}/v1</code> (直连当前指定网关，各网关 Key 互不影响)<br>
-          • <strong>API Key (Bearer)</strong>: 
-            <code class="key-mono" id="hintClientApiKey">••••••••••••</code>
-            <button class="btn btn-sm" id="btnToggleKeyMask" onclick="toggleApiKeyMask()" style="padding: 2px 8px; margin-left: 6px; font-size: 11px;">👁️ 显示</button>
-            <button class="btn btn-sm btn-primary" onclick="copyFullClientApiKey()" style="padding: 2px 8px; margin-left: 4px; font-size: 11px;">📋 复制完整密钥</button><br>
-          • <strong>海量 Key 调度架构</strong>: 采用纯内存打乱均匀分发，正常请求 0 次 KV 覆写，无并发锁冲突，毫秒级故障转移。
+        <!-- 2. 4 个核心指标恢复为精致 Bento 卡片 (grid-cols-4，呼吸感与饱满大字) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              活跃可用 Key
+            </div>
+            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statActive">0</div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              额度耗尽 / 限流
+            </div>
+            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statExhausted">0</div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              认证失效 / 401
+            </div>
+            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statInvalid">0</div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center justify-between font-medium">
+              <span class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                视图 Key 总数
+              </span>
+              <span class="text-[10px] text-zinc-400 font-mono" id="statDesc">所有状态</span>
+            </div>
+            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statTotalKeys">0</div>
+          </div>
         </div>
-      </div>
+
+        <!-- 3. 一体化数据工作台卡片 (工具栏 + 精密表格 + 分页栏) -->
+        <div class="rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] shadow-xs overflow-hidden">
+          
+          <!-- 工具栏 -->
+          <div class="px-3.5 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-2.5">
+            <div class="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
+              <button class="h-7 px-2.5 rounded-md bg-[#0071E3] hover:bg-[#0077ED] text-white text-[11px] font-medium shadow-xs inline-flex items-center gap-1.5 whitespace-nowrap" onclick="openImportModal()">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                导入 Key
+              </button>
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" id="btnProbeAll" onclick="probeAllKeys()">
+                <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                安全批量测活
+              </button>
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" onclick="reviveAllKeys()">
+                <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+                </svg>
+                一键复活
+              </button>
+              <button class="h-7 px-2.5 rounded-md text-[#FF3B30] dark:text-[#FF453A] hover:bg-[#FF3B30]/[0.06] border border-[#FF3B30]/20 text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap" onclick="cleanInvalidKeys()">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                清理失效
+              </button>
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" onclick="openExportModal()">
+                <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                导出备份
+              </button>
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" onclick="openTestModal()">
+                <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                在线对话
+              </button>
+            </div>
+
+            <!-- 右侧搜索与过滤分段控制器 -->
+            <div class="flex items-center gap-2">
+              <div class="relative">
+                <input type="text" id="searchKeyInput" class="h-7 w-36 sm:w-44 pl-7 pr-2 rounded-md bg-[#F2F2F7] dark:bg-white/[0.05] border border-transparent focus:border-[#0071E3] focus:bg-white dark:focus:bg-[#1C1C1E] text-[11px] outline-none transition-all" placeholder="搜索 Key 或备注..." oninput="handleSearch(this.value)">
+                <svg class="w-3 h-3 absolute left-2 top-2 text-zinc-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </div>
+              <div class="tabs">
+                <button class="tab active" onclick="setFilter('all', this)">全部 (<span class="font-mono tabular-nums" id="countAll">0</span>)</button>
+                <button class="tab" onclick="setFilter('active', this)">活跃 (<span class="font-mono tabular-nums" id="countActive">0</span>)</button>
+                <button class="tab" onclick="setFilter('exhausted', this)">耗尽 (<span class="font-mono tabular-nums" id="countExhausted">0</span>)</button>
+                <button class="tab" onclick="setFilter('invalid', this)">失效 (<span class="font-mono tabular-nums" id="countInvalid">0</span>)</button>
+                <button class="tab" onclick="setFilter('disabled', this)">已停用 (<span class="font-mono tabular-nums" id="countDisabled">0</span>)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 表格体 -->
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 90px;">状态</th>
+                  <th id="thGatewayCol" style="width: 110px; display: none;">归属网关</th>
+                  <th>名称 / 备注</th>
+                  <th>Key 凭证 (点击复制)</th>
+                  <th style="width: 100px;">成功 / 失败</th>
+                  <th style="width: 130px;">最后调度</th>
+                  <th>健康检查说明</th>
+                  <th style="width: 180px; text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="keysTableBody">
+                <tr>
+                  <td colspan="8" class="text-center py-12 text-zinc-400 dark:text-zinc-500 font-mono text-xs">加载数据中...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 分页栏 -->
+          <div class="px-3.5 py-2 bg-zinc-50/50 dark:bg-white/[0.01] border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+            <div class="flex items-center gap-2">
+              <span>展示:</span>
+              <select id="pageSizeSelect" class="form-select w-16 py-0.5 px-1.5 text-xs font-mono tabular-nums" onchange="changePageSize(this.value)">
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="99999">全部</option>
+              </select>
+              <span class="font-mono tabular-nums text-[11px]" id="pageTotalInfo">共 0 条</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnFirstPage" onclick="goToPage(1)">首页</button>
+              <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnPrevPage" onclick="prevPage()">上页</button>
+              <span class="mx-1.5 font-mono tabular-nums text-zinc-700 dark:text-zinc-300 text-[11px]">
+                第 <strong id="curPageNum" class="text-zinc-900 dark:text-zinc-100 font-semibold">1</strong> / <strong id="totalPageNum" class="text-zinc-900 dark:text-zinc-100 font-semibold">1</strong> 页
+              </span>
+              <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnNextPage" onclick="nextPage()">下页</button>
+              <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnLastPage" onclick="goToLastPage()">末页</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 客户端接入区 (独立底部卡片，拥有明确的 mt-4 边距与规整网格) -->
+        <div class="mt-4 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] p-4 shadow-xs space-y-2.5">
+          <div class="flex items-center gap-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+            <svg class="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+              <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+            客户端接入 (OpenAI 协议)
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1">
+              <div class="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">通用全局入口 (模型自路由)</div>
+              <div class="flex items-center justify-between gap-1">
+                <code class="key-mono truncate flex-1" id="apiEndpointBase">https://.../v1</code>
+                <button class="btn btn-sm btn-secondary p-1 h-5 w-5" onclick="copyText(document.getElementById('apiEndpointBase').textContent)" title="复制">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1">
+              <div class="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">当前网关专属入口</div>
+              <div class="flex items-center justify-between gap-1">
+                <code class="key-mono truncate flex-1" id="apiEndpointSpecific">https://.../{id}/v1</code>
+                <button class="btn btn-sm btn-secondary p-1 h-5 w-5" onclick="copyText(document.getElementById('apiEndpointSpecific').textContent)" title="复制">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1">
+              <div class="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">客户端 Bearer Token</div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <code class="key-mono tabular-nums truncate flex-1" id="hintClientApiKey">••••••••••••</code>
+                <button class="btn btn-sm btn-secondary py-0.5 px-1.5 text-[10px] h-5" id="btnToggleKeyMask" onclick="toggleApiKeyMask()">显示</button>
+                <button class="btn btn-sm btn-primary py-0.5 px-1.5 text-[10px] h-5" onclick="copyFullClientApiKey()">复制</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
     </div>
   </div>
 
@@ -588,24 +969,28 @@ export const UI_HTML = `<!DOCTYPE html>
   <div class="modal-backdrop" id="importModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title" id="importModalTitle">➕ 批量导入 API Key</div>
-        <button class="btn btn-sm" onclick="closeModal('importModal')">✕</button>
+        <div class="modal-title" id="importModalTitle">批量导入 API Key</div>
+        <button class="btn btn-sm btn-secondary p-1 h-6 w-6" onclick="closeModal('importModal')">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">🎯 选择导入归属的网关</label>
+      <div class="modal-body space-y-3">
+        <div class="form-group mb-0">
+          <label class="form-label">选择导入归属的网关</label>
           <select id="importGwSelect" class="form-select"></select>
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">粘贴 Key 列表 (每行一个，或直接粘贴 Excel/表格/JSON)</label>
           <textarea id="importTextarea" class="form-textarea" placeholder="支持多种格式，智能识别：&#10;sk-bd0bd5ccb31e...&#10;账号2----sk-778899aa...&#10;sk-11223344...,测试账号3&#10;账号4:sk-99887766...&#10;纯token密钥 (无sk前缀也可以)&#10;Excel表格复制 (名称 制表符 Key)&#10;[&quot;sk-111&quot;, &quot;sk-222&quot;]"></textarea>
         </div>
-        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
-          * 系统采用防覆写强一致存储：自动排重已有 Key、自动智能纠错并分离备注与密钥，导入后默认状态为【活跃】。
-        </div>
+        <p class="text-[11px] text-zinc-500 leading-normal font-sans">
+          系统采用防覆写强一致存储：自动排重已有 Key、自动智能纠错并分离备注与密钥，导入后默认状态为【活跃】。
+        </p>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeModal('importModal')">取消</button>
+        <button class="btn btn-secondary" onclick="closeModal('importModal')">取消</button>
         <button class="btn btn-primary" onclick="submitImport()">确认导入</button>
       </div>
     </div>
@@ -615,11 +1000,15 @@ export const UI_HTML = `<!DOCTYPE html>
   <div class="modal-backdrop" id="exportModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">📋 导出备份 Key 列表</div>
-        <button class="btn btn-sm" onclick="closeModal('exportModal')">✕</button>
+        <div class="modal-title">导出备份 Key 列表</div>
+        <button class="btn btn-sm btn-secondary p-1 h-6 w-6" onclick="closeModal('exportModal')">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
+      <div class="modal-body space-y-3">
+        <div class="form-group mb-0">
           <label class="form-label">选择导出格式</label>
           <select id="exportFormatSelect" class="form-select" onchange="generateExportContent()">
             <option value="line_pair">备注----Key (标准文本)</option>
@@ -628,14 +1017,14 @@ export const UI_HTML = `<!DOCTYPE html>
             <option value="json">JSON 完整备份</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <textarea id="exportTextarea" class="form-textarea" style="min-height: 180px;" readonly></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="copyText(document.getElementById('exportTextarea').value)">📋 一键复制全部</button>
-        <button class="btn btn-primary" onclick="downloadExportFile()">💾 下载为文件</button>
-        <button class="btn" onclick="closeModal('exportModal')">关闭</button>
+        <button class="btn btn-secondary" onclick="copyText(document.getElementById('exportTextarea').value)">复制全部</button>
+        <button class="btn btn-primary" onclick="downloadExportFile()">下载为文件</button>
+        <button class="btn btn-secondary" onclick="closeModal('exportModal')">关闭</button>
       </div>
     </div>
   </div>
@@ -644,45 +1033,49 @@ export const UI_HTML = `<!DOCTYPE html>
   <div class="modal-backdrop" id="gatewayModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title" id="gatewayModalTitle">⚙️ 网关配置</div>
-        <button class="btn btn-sm" onclick="closeModal('gatewayModal')">✕</button>
+        <div class="modal-title" id="gatewayModalTitle">网关配置</div>
+        <button class="btn btn-sm btn-secondary p-1 h-6 w-6" onclick="closeModal('gatewayModal')">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="form-group" id="gwPresetGroup">
-          <label class="form-label">🚀 常见平台快速预设 (可选)</label>
+      <div class="modal-body space-y-3">
+        <div class="form-group mb-0" id="gwPresetGroup">
+          <label class="form-label">常见平台快速预设 (可选)</label>
           <select id="presetSelect" class="form-select" onchange="applyPreset(this.value)">
             <option value="">-- 选择预设以自动填充，或自行输入任意地址 --</option>
-            <option value="intern">🌟 书生·砚 (https://discovery-api.intern-ai.org.cn/v1)</option>
-            <option value="deepseek">🐳 DeepSeek 官方 (https://api.deepseek.com/v1)</option>
-            <option value="silicon">⚡ 硅基流动 SiliconFlow (https://api.siliconflow.cn/v1)</option>
-            <option value="openrouter">🌐 OpenRouter (https://openrouter.ai/api/v1)</option>
-            <option value="openai">🤖 OpenAI 官方 (https://api.openai.com/v1)</option>
-            <option value="custom">🛠️ 自定义第三方中转站 / 其它兼容平台</option>
+            <option value="intern">书生·砚 (https://discovery-api.intern-ai.org.cn/v1)</option>
+            <option value="deepseek">DeepSeek 官方 (https://api.deepseek.com/v1)</option>
+            <option value="silicon">硅基流动 SiliconFlow (https://api.siliconflow.cn/v1)</option>
+            <option value="openrouter">OpenRouter (https://openrouter.ai/api/v1)</option>
+            <option value="openai">OpenAI 官方 (https://api.openai.com/v1)</option>
+            <option value="custom">自定义第三方中转站 / 其它兼容平台</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">网关英文标识 ID (不可与已有重复，URL 路由使用)</label>
-          <input type="text" id="gwIdInput" class="form-input" placeholder="例如: intern, deepseek, myproxy">
+          <input type="text" id="gwIdInput" class="form-input font-mono" placeholder="例如: intern, deepseek, myproxy">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">网关显示名称</label>
-          <input type="text" id="gwNameInput" class="form-input" placeholder="例如: 🌟 书生·砚 (PJLab)">
+          <input type="text" id="gwNameInput" class="form-input" placeholder="例如: 书生·砚 (PJLab)">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">上游目标 Base URL</label>
-          <input type="text" id="gwBaseInput" class="form-input" placeholder="https://api.deepseek.com/v1">
+          <input type="text" id="gwBaseInput" class="form-input font-mono" placeholder="https://api.deepseek.com/v1">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">默认测活 / 兜底测试模型名称</label>
-          <input type="text" id="gwModelInput" class="form-input" placeholder="例如: deepseek-chat, deepseek-v4-flash-0731">
+          <input type="text" id="gwModelInput" class="form-input font-mono" placeholder="例如: deepseek-chat, deepseek-v4-flash-0731">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">自定义模型列表 (逗号分隔，可选备用)</label>
-          <input type="text" id="gwCustomModelsInput" class="form-input" placeholder="例如: deepseek-chat,deepseek-reasoner">
+          <input type="text" id="gwCustomModelsInput" class="form-input font-mono" placeholder="例如: deepseek-chat,deepseek-reasoner">
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeModal('gatewayModal')">取消</button>
+        <button class="btn btn-secondary" onclick="closeModal('gatewayModal')">取消</button>
         <button class="btn btn-primary" onclick="submitSaveGateway()">保存网关</button>
       </div>
     </div>
@@ -692,29 +1085,33 @@ export const UI_HTML = `<!DOCTYPE html>
   <div class="modal-backdrop" id="globalConfigModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">⚙️ 全局系统参数</div>
-        <button class="btn btn-sm" onclick="closeModal('globalConfigModal')">✕</button>
+        <div class="modal-title">全局系统参数</div>
+        <button class="btn btn-sm btn-secondary p-1 h-6 w-6" onclick="closeModal('globalConfigModal')">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
+      <div class="modal-body space-y-3">
+        <div class="form-group mb-0">
           <label class="form-label">单次请求最大故障转移换号次数</label>
-          <input type="number" id="cfgMaxRetries" class="form-input" min="1" max="20" placeholder="5">
+          <input type="number" id="cfgMaxRetries" class="form-input font-mono" min="1" max="20" placeholder="5">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">自动复活候选周期 (天)</label>
-          <input type="number" id="cfgAutoResetDays" class="form-input" min="1" max="365" placeholder="7">
+          <input type="number" id="cfgAutoResetDays" class="form-input font-mono" min="1" max="365" placeholder="7">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">管理面板密码 (留空则不修改)</label>
           <input type="password" id="cfgAdminPassword" class="form-input" placeholder="留空不修改，输入新密码覆盖">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">客户端访问 Key (留空则对外免密公开访问)</label>
-          <input type="text" id="cfgClientApiKey" class="form-input" placeholder="留空则任何人可调用 /v1/*">
+          <input type="text" id="cfgClientApiKey" class="form-input font-mono" placeholder="留空则任何人可调用 /v1/*">
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeModal('globalConfigModal')">取消</button>
+        <button class="btn btn-secondary" onclick="closeModal('globalConfigModal')">取消</button>
         <button class="btn btn-primary" onclick="submitGlobalConfig()">保存全局设置</button>
       </div>
     </div>
@@ -724,38 +1121,65 @@ export const UI_HTML = `<!DOCTYPE html>
   <div class="modal-backdrop" id="testModal">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">💬 在线流式对话与故障转移测试</div>
-        <button class="btn btn-sm" onclick="closeModal('testModal')">✕</button>
+        <div class="modal-title">在线流式对话与故障转移测试</div>
+        <button class="btn btn-sm btn-secondary p-1 h-6 w-6" onclick="closeModal('testModal')">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
+      <div class="modal-body space-y-3">
+        <div class="form-group mb-0">
           <label class="form-label">选择或输入测试模型</label>
-          <div style="display: flex; gap: 8px;">
-            <select id="testModelSelect" class="form-select" style="flex: 1;" onchange="document.getElementById('testModelName').value=this.value">
+          <div class="flex gap-2">
+            <select id="testModelSelect" class="form-select flex-1 font-mono" onchange="document.getElementById('testModelName').value=this.value">
             </select>
-            <input type="text" id="testModelName" class="form-input" style="flex: 1;" placeholder="或直接输入自定义模型">
+            <input type="text" id="testModelName" class="form-input flex-1 font-mono" placeholder="或直接输入自定义模型">
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">测试提示词</label>
           <input type="text" id="testPrompt" class="form-input" value="你好！请输出一句简短的中文问候。">
         </div>
-        <div class="form-group">
+        <div class="form-group mb-0">
           <label class="form-label">实时输出结果</label>
           <div id="testOutput" class="chat-box">等待发送测试...</div>
         </div>
-        <div id="testMeta" style="font-size: 12px; color: var(--text-muted);"></div>
+        <div id="testMeta" class="text-xs text-zinc-500 font-mono tabular-nums"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeModal('testModal')">关闭</button>
-        <button class="btn btn-primary" id="btnSendTest" onclick="runChatTest()">⚡ 发送测试请求</button>
+        <button class="btn btn-secondary" onclick="closeModal('testModal')">关闭</button>
+        <button class="btn btn-primary" id="btnSendTest" onclick="runChatTest()">发送测试请求</button>
       </div>
     </div>
   </div>
 
+  <!-- macOS 顶部居中 Dynamic HUD Capsule Toast -->
   <div id="toast"></div>
 
   <script>
+    // ── Theme Management ──
+    const SVG_SUN = \`<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>\`;
+    const SVG_MOON = \`<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>\`;
+
+    function initTheme() {
+      const stored = localStorage.getItem('cf_theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (stored === 'light' || (!stored && !prefersDark)) {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('themeToggleIcon').innerHTML = SVG_MOON;
+      } else {
+        document.documentElement.classList.add('dark');
+        document.getElementById('themeToggleIcon').innerHTML = SVG_SUN;
+      }
+    }
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('cf_theme', isDark ? 'dark' : 'light');
+      document.getElementById('themeToggleIcon').innerHTML = isDark ? SVG_SUN : SVG_MOON;
+    }
+    initTheme();
+
     let poolData = { keys: [], config: { gateways: [], activeGatewayId: 'intern' } };
     let viewingGatewayId = 'all'; // 默认进入【全部网关】视图，总览所有 Key
     let currentFilter = 'all';
@@ -765,12 +1189,12 @@ export const UI_HTML = `<!DOCTYPE html>
     const TOKEN_STORAGE_KEY = 'keypool_admin_key';
 
     const PRESETS = {
-      intern: { id: 'intern', name: '🌟 书生·砚 (PJLab)', base: 'https://discovery-api.intern-ai.org.cn/v1', model: 'deepseek-v4-flash-0731', list: 'deepseek-v4-flash-0731,Agents-A1,Atria-Dawn-Preview' },
-      deepseek: { id: 'deepseek', name: '🐳 DeepSeek 官方', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', list: 'deepseek-chat,deepseek-reasoner' },
-      silicon: { id: 'silicon', name: '⚡ 硅基流动 SiliconFlow', base: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3', list: 'deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1' },
-      openrouter: { id: 'openrouter', name: '🌐 OpenRouter', base: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-r1', list: 'deepseek/deepseek-r1,anthropic/claude-3.5-sonnet' },
-      openai: { id: 'openai', name: '🤖 OpenAI 官方', base: 'https://api.openai.com/v1', model: 'gpt-4o-mini', list: 'gpt-4o,gpt-4o-mini' },
-      custom: { id: 'custom', name: '🛠️ 自定义中转站', base: '', model: '', list: '' }
+      intern: { id: 'intern', name: '书生·砚 (PJLab)', base: 'https://discovery-api.intern-ai.org.cn/v1', model: 'deepseek-v4-flash-0731', list: 'deepseek-v4-flash-0731,Agents-A1,Atria-Dawn-Preview' },
+      deepseek: { id: 'deepseek', name: 'DeepSeek 官方', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', list: 'deepseek-chat,deepseek-reasoner' },
+      silicon: { id: 'silicon', name: '硅基流动 SiliconFlow', base: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3', list: 'deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1' },
+      openrouter: { id: 'openrouter', name: 'OpenRouter', base: 'https://openrouter.ai/api/v1', model: 'deepseek/deepseek-r1', list: 'deepseek/deepseek-r1,anthropic/claude-3.5-sonnet' },
+      openai: { id: 'openai', name: 'OpenAI 官方', base: 'https://api.openai.com/v1', model: 'gpt-4o-mini', list: 'gpt-4o,gpt-4o-mini' },
+      custom: { id: 'custom', name: '自定义中转站', base: '', model: '', list: '' }
     };
 
     function applyPreset(val) {
@@ -805,13 +1229,13 @@ export const UI_HTML = `<!DOCTYPE html>
       if (btn) btn.style.display = 'inline-flex';
       if (isApiKeyRevealed) {
         el.textContent = rawKey;
-        if (btn) btn.textContent = '🙈 隐藏';
+        if (btn) btn.textContent = '隐藏';
       } else {
         const masked = rawKey.length > 10
           ? (rawKey.slice(0, 6) + '••••••••' + rawKey.slice(-4))
           : '••••••••••••';
         el.textContent = masked;
-        if (btn) btn.textContent = '👁️ 显示';
+        if (btn) btn.textContent = '显示';
       }
     }
 
@@ -829,9 +1253,9 @@ export const UI_HTML = `<!DOCTYPE html>
     function showToast(msg, isError = false) {
       const el = document.getElementById('toast');
       el.textContent = msg;
-      el.style.borderColor = isError ? 'var(--danger)' : 'var(--card-border)';
+      el.style.borderColor = isError ? '#FF453A' : '';
       el.classList.add('show');
-      setTimeout(() => el.classList.remove('show'), 3500);
+      setTimeout(() => el.classList.remove('show'), 3000);
     }
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -872,13 +1296,13 @@ export const UI_HTML = `<!DOCTYPE html>
 
     function showAppView() {
       document.getElementById('loginView').style.display = 'none';
-      document.getElementById('appView').style.display = 'block';
+      document.getElementById('appView').style.display = 'flex';
       document.getElementById('headerAuthActions').style.display = 'flex';
     }
 
     async function doLogin() {
       const pwd = document.getElementById('loginPwdInput').value.trim();
-      if (!pwd) return showLoginView('请输入管理密钥');
+      if (!pwd) return showLoginView('请输入管理密码');
       setAdminKey(pwd);
       try {
         await fetchData();
@@ -924,7 +1348,7 @@ export const UI_HTML = `<!DOCTYPE html>
         const activeGw = gws.find(g => g.id === poolData.config?.activeGatewayId) || gws[0];
         return {
           id: 'all',
-          name: '🌐 全部网关集中总览',
+          name: '全部网关集中总览',
           targetBase: '多网关动态路由 (匹配请求 model)',
           defaultModel: activeGw ? activeGw.defaultModel : '自动调度',
         };
@@ -938,6 +1362,9 @@ export const UI_HTML = `<!DOCTYPE html>
       renderTableOnly();
     }
 
+    // 极简 SVG 线性图标 helper
+    const SVG_STAR = \`<svg class="w-3 h-3 text-blue-500 fill-blue-500 shrink-0" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>\`;
+
     function render() {
       const config = poolData.config || {};
       const gateways = config.gateways || [];
@@ -945,21 +1372,27 @@ export const UI_HTML = `<!DOCTYPE html>
       const curGw = getCurrentGateway();
       const isAll = viewingGatewayId === 'all';
 
-      // 1. 渲染网关切换 Tabs (首位加入 "全部网关" 标签)
+      // 1. 渲染左侧边栏网关项目
       const tabsEl = document.getElementById('gatewayTabs');
       const allTabHtml = \`<button class="gw-tab \${isAll ? 'active' : ''}" onclick="switchGateway('all')">
-        <span>🌐 全部网关</span>
-        <span class="gw-badge">\${keys.length}</span>
+        <div class="flex items-center gap-2 truncate">
+          <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span class="truncate">全部网关</span>
+        </div>
+        <span class="gw-badge tabular-nums">\${keys.length}</span>
       </button>\`;
 
       const gwsHtml = gateways.map(g => {
         const count = keys.filter(k => (k.gatewayId || 'intern') === g.id).length;
         const isDefault = g.id === config.activeGatewayId;
         const isActive = g.id === curGw.id;
-        return \`<button class="gw-tab \${isActive ? 'active' : ''}" onclick="switchGateway('\${g.id}')">
-          <span>\${escapeHtml(g.name)}</span>
-          \${isDefault ? '<span style="font-size: 10px; color: #60a5fa;" title="全局主网关">⭐</span>' : ''}
-          <span class="gw-badge">\${count}</span>
+        return \`<button class="gw-tab \${isActive ? 'active' : ''}" onclick="switchGateway(\${escapeJsArg(g.id)})">
+          <div class="flex items-center gap-1.5 truncate">
+            <svg class="w-3.5 h-3.5 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            <span class="truncate">\${escapeHtml(g.name)}</span>
+            \${isDefault ? SVG_STAR : ''}
+          </div>
+          <span class="gw-badge tabular-nums">\${count}</span>
         </button>\`;
       }).join('');
 
@@ -973,15 +1406,15 @@ export const UI_HTML = `<!DOCTYPE html>
 
       const isDefault = !isAll && curGw.id === config.activeGatewayId;
       document.getElementById('curGwDefaultBadge').innerHTML = isDefault
-        ? '<span class="badge badge-active-gw">⭐ 全局主网关</span>'
-        : (isAll ? '<span class="badge" style="background: rgba(139,92,246,0.2); color: #c4b5fd;">已汇聚 ' + gateways.length + ' 个网关</span>' : '');
+        ? \`<span class="badge badge-active-gw">\${SVG_STAR}主网关</span>\`
+        : (isAll ? '<span class="badge bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 border border-black/[0.05] dark:border-white/[0.08] font-mono">已汇聚 ' + gateways.length + ' 个网关</span>' : '');
 
       document.getElementById('btnSetAsDefault').style.display = isAll || isDefault ? 'none' : 'inline-flex';
       document.getElementById('btnDeleteGw').style.display = isAll || gateways.length <= 1 ? 'none' : 'inline-flex';
       document.getElementById('btnEditGw').style.display = isAll ? 'none' : 'inline-flex';
       document.getElementById('btnFetchModels').style.display = isAll ? 'none' : 'inline-flex';
 
-      // 3. 渲染当前网关已探测到的模型列表
+      // 3. 渲染当前网关模型列表 (内凹等宽微标)
       let allModels = [];
       if (isAll) {
         const set = new Set();
@@ -1001,11 +1434,11 @@ export const UI_HTML = `<!DOCTYPE html>
 
       const tagsEl = document.getElementById('curGwModelTags');
       if (allModels.length === 0) {
-        tagsEl.innerHTML = '<span style="color: var(--text-muted);">暂无探测模型</span>';
+        tagsEl.innerHTML = '<span class="text-xs text-zinc-400">暂无探测模型</span>';
       } else {
         tagsEl.innerHTML = allModels.slice(0, 15).map(m =>
-          \`<span class="model-tag" onclick="quickTestModel('\${escapeHtml(m)}')">\${escapeHtml(m)}</span>\`
-        ).join('') + (allModels.length > 15 ? \`<span style="font-size: 11px; color: var(--text-muted);">+等共\${allModels.length}个</span>\` : '');
+          \`<span class="model-tag" onclick="quickTestModel(\${escapeJsArg(m)})">\${escapeHtml(m)}</span>\`
+        ).join('') + (allModels.length > 15 ? \`<span class="text-[10px] text-zinc-400 font-mono ml-1">+等共\${allModels.length}个</span>\` : '');
       }
 
       // 4. Key 统计 (当前视图)
@@ -1023,7 +1456,7 @@ export const UI_HTML = `<!DOCTYPE html>
       document.getElementById('statExhausted').textContent = exhaustedCount;
       document.getElementById('statInvalid').textContent = invalidCount;
       document.getElementById('statTotalKeys').textContent = visibleKeys.length;
-      document.getElementById('statDesc').textContent = isAll ? '全部网关 Key 总汇' : (\`归属于 [\${curGw.name}]\`);
+      document.getElementById('statDesc').textContent = isAll ? '全部网关' : curGw.name;
 
       document.getElementById('countAll').textContent = visibleKeys.length;
       document.getElementById('countActive').textContent = activeCount;
@@ -1091,7 +1524,16 @@ export const UI_HTML = `<!DOCTYPE html>
       document.getElementById('btnLastPage').disabled = currentPage >= totalPages;
 
       if (totalCount === 0) {
-        tbody.innerHTML = \`<tr><td colspan="\${isAll ? 8 : 7}" style="text-align: center; color: var(--text-muted); padding: 36px;">暂无匹配的 Key，可点击上方导入或调整筛选</td></tr>\`;
+        tbody.innerHTML = \`<tr>
+          <td colspan="\${isAll ? 8 : 7}" class="text-center py-12 text-zinc-400 dark:text-zinc-500 font-sans text-xs">
+            <div class="flex flex-col items-center justify-center gap-2">
+              <svg class="w-7 h-7 text-zinc-300 dark:text-zinc-600 stroke-[1.25]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              <span>暂无匹配的 Key，可点击上方导入或调整筛选</span>
+            </div>
+          </td>
+        </tr>\`;
         return;
       }
 
@@ -1101,10 +1543,15 @@ export const UI_HTML = `<!DOCTYPE html>
 
       tbody.innerHTML = pageSlice.map(k => {
         let badgeHtml = '';
-        if (k.disabled) badgeHtml = '<span class="badge badge-disabled">⚪ 已停用</span>';
-        else if (k.status === 'active') badgeHtml = '<span class="badge badge-active">🟢 活跃可用</span>';
-        else if (k.status === 'exhausted') badgeHtml = '<span class="badge badge-exhausted">🟡 额度耗尽</span>';
-        else badgeHtml = '<span class="badge badge-invalid">🔴 认证失败</span>';
+        if (k.disabled) {
+          badgeHtml = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"><span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>已停用</span>';
+        } else if (k.status === 'active') {
+          badgeHtml = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>活跃可用</span>';
+        } else if (k.status === 'exhausted') {
+          badgeHtml = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap bg-amber-500/10 text-amber-600 dark:text-amber-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>额度耗尽</span>';
+        } else {
+          badgeHtml = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap bg-rose-500/10 text-rose-600 dark:text-rose-400"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>认证失败</span>';
+        }
 
         const masked = k.key.length > 14 ? (k.key.slice(0, 8) + '...' + k.key.slice(-4)) : k.key;
         const lastUsed = k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString('zh-CN', { hour12: false }) : '从未';
@@ -1113,19 +1560,19 @@ export const UI_HTML = `<!DOCTYPE html>
         const gwName = gwItem ? gwItem.name : (k.gatewayId || 'intern');
 
         return \`<tr>
-          <td>\${badgeHtml}</td>
-          \${isAll ? \`<td><span class="badge-gw-tag" style="cursor: pointer;" onclick="switchGateway('\${k.gatewayId || 'intern'}')" title="点击直达该网关">\${escapeHtml(gwName)}</span></td>\` : ''}
-          <td style="font-weight: 500;">\${escapeHtml(k.name || '未命名')}</td>
-          <td><span class="key-mono" title="点击复制完整 Key" onclick="copyText('\${k.key}')">\${masked}</span></td>
-          <td><span style="color: #34d399;">\${k.successCount || 0}</span> / <span style="color: #f87171;">\${k.failCount || 0}</span></td>
-          <td style="color: var(--text-muted); font-size: 12px;">\${lastUsed}</td>
-          <td style="font-size: 12px; color: var(--text-muted);" title="\${escapeHtml(msg)}">\${escapeHtml(msg)}</td>
-          <td style="text-align: right;">
-            <div style="display: inline-flex; gap: 6px;">
-              <button class="btn btn-sm btn-primary" onclick="probeSingle('\${k.id}')">测活</button>
-              <button class="btn btn-sm" onclick="toggleKey('\${k.id}')">\${k.disabled ? '启用' : '禁用'}</button>
-              \${k.status !== 'active' ? \`<button class="btn btn-sm btn-warning" onclick="reviveSingle('\${k.id}')">设活跃</button>\` : ''}
-              <button class="btn btn-sm btn-danger" onclick="deleteKey('\${k.id}')">删除</button>
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle">\${badgeHtml}</td>
+          \${isAll ? \`<td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle"><span class="badge-gw-tag cursor-pointer font-mono" onclick="switchGateway(\${escapeJsArg(k.gatewayId || 'intern')})" title="点击直达该网关">\${escapeHtml(gwName)}</span></td>\` : ''}
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle font-medium text-zinc-900 dark:text-zinc-100">\${escapeHtml(k.name || '未命名')}</td>
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle"><span class="key-mono font-mono text-[11px] px-2 py-0.5 rounded-md bg-zinc-100/80 dark:bg-white/[0.05] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/[0.1] cursor-pointer transition-colors" title="点击复制完整 Key" onclick="copyText(\${escapeJsArg(k.key)})">\${escapeHtml(masked)}</span></td>
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle font-mono tabular-nums"><span class="text-emerald-600 dark:text-emerald-400 font-medium">\${k.successCount || 0}</span><span class="text-zinc-300 dark:text-zinc-600 mx-0.5">/</span><span class="text-rose-500 dark:text-rose-400">\${k.failCount || 0}</span></td>
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle text-zinc-500 dark:text-zinc-400 font-mono tabular-nums text-[11px]">\${lastUsed}</td>
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle text-zinc-500 dark:text-zinc-400 max-w-xs truncate" title="\${escapeHtml(msg)}">\${escapeHtml(msg)}</td>
+          <td class="whitespace-nowrap px-3.5 py-2 text-xs align-middle text-right">
+            <div class="inline-flex items-center rounded-md border border-black/[0.08] dark:border-white/[0.08] divide-x divide-black/[0.08] dark:divide-white/[0.08] overflow-hidden bg-zinc-50/50 dark:bg-white/[0.02]">
+              <button class="px-2 py-0.5 text-[11px] hover:bg-zinc-100 dark:hover:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 transition-colors" onclick="probeSingle(\${escapeJsArg(k.id)})">测活</button>
+              <button class="px-2 py-0.5 text-[11px] hover:bg-zinc-100 dark:hover:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 transition-colors" onclick="toggleKey(\${escapeJsArg(k.id)})">\${k.disabled ? '启用' : '禁用'}</button>
+              \${k.status !== 'active' ? \`<button class="px-2 py-0.5 text-[11px] hover:bg-zinc-100 dark:hover:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 transition-colors" onclick="reviveSingle(\${escapeJsArg(k.id)})">设活跃</button>\` : ''}
+              <button class="px-2 py-0.5 text-[11px] text-rose-500 hover:bg-rose-500/10 transition-colors" onclick="deleteKey(\${escapeJsArg(k.id)})">删除</button>
             </div>
           </td>
         </tr>\`;
@@ -1178,6 +1625,13 @@ export const UI_HTML = `<!DOCTYPE html>
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    function escapeJsArg(value) {
+      const literal = JSON.stringify(String(value))
+        .replace(/\\u2028/g, '\\\\u2028')
+        .replace(/\\u2029/g, '\\\\u2029');
+      return escapeHtml(literal);
+    }
+
     function copyText(txt) {
       if (!txt || txt.includes('未设置')) return;
       navigator.clipboard.writeText(txt).then(() => showToast('已复制到剪贴板！'));
@@ -1216,12 +1670,12 @@ export const UI_HTML = `<!DOCTYPE html>
         showToast('获取模型失败: ' + e.message, true);
       } finally {
         btn.disabled = false;
-        btn.textContent = '🔄 重新获取上游模型';
+        btn.textContent = '探测模型';
       }
     }
 
     function openNewGatewayModal() {
-      document.getElementById('gatewayModalTitle').textContent = '➕ 添加新网关配置';
+      document.getElementById('gatewayModalTitle').textContent = '添加新网关配置';
       document.getElementById('gwIdInput').disabled = false;
       document.getElementById('gwIdInput').value = '';
       document.getElementById('gwNameInput').value = '';
@@ -1235,7 +1689,7 @@ export const UI_HTML = `<!DOCTYPE html>
     function openEditGatewayModal() {
       const curGw = getCurrentGateway();
       if (curGw.id === 'all') return;
-      document.getElementById('gatewayModalTitle').textContent = '✏️ 编辑网关: ' + curGw.name;
+      document.getElementById('gatewayModalTitle').textContent = '编辑网关: ' + curGw.name;
       document.getElementById('gwIdInput').disabled = true;
       document.getElementById('gwIdInput').value = curGw.id;
       document.getElementById('gwNameInput').value = curGw.name;
@@ -1286,7 +1740,7 @@ export const UI_HTML = `<!DOCTYPE html>
     function openImportModal() {
       const gws = poolData.config?.gateways || [];
       const selectEl = document.getElementById('importGwSelect');
-      selectEl.innerHTML = gws.map(g => \`<option value="\${g.id}">\${escapeHtml(g.name)} (\${g.id})</option>\`).join('');
+      selectEl.innerHTML = gws.map(g => \`<option value="\${escapeHtml(g.id)}">\${escapeHtml(g.name)} (\${escapeHtml(g.id)})</option>\`).join('');
 
       if (viewingGatewayId !== 'all') {
         selectEl.value = viewingGatewayId;
@@ -1330,7 +1784,6 @@ export const UI_HTML = `<!DOCTYPE html>
       } else if (format === 'json') {
         textarea.value = JSON.stringify(keys, null, 2);
       } else {
-        // 标准 line_pair
         textarea.value = keys.map(k => \`\${k.name || 'Key'}----\${k.key}\`).join('\\n');
       }
     }
@@ -1366,7 +1819,7 @@ export const UI_HTML = `<!DOCTYPE html>
       btn.disabled = true;
       btn.textContent = '测活中...';
       const targetGid = viewingGatewayId;
-      showToast('正在启动安全分批测活 (规避 CF Workers 配额限制)...');
+      showToast('正在启动安全分批测活...');
 
       let offset = 0;
       const limit = 25;
@@ -1402,7 +1855,7 @@ export const UI_HTML = `<!DOCTYPE html>
         showToast('测活中断: ' + e.message, true);
       } finally {
         btn.disabled = false;
-        btn.textContent = '⚡ 安全批量测活';
+        btn.textContent = '安全批量测活';
         fetchData();
       }
     }
@@ -1529,7 +1982,7 @@ export const UI_HTML = `<!DOCTYPE html>
       const meta = document.getElementById('testMeta');
       const btn = document.getElementById('btnSendTest');
 
-      out.textContent = '🚀 发起请求中...';
+      out.textContent = '发起请求中...';
       meta.textContent = '';
       btn.disabled = true;
 
@@ -1558,7 +2011,7 @@ export const UI_HTML = `<!DOCTYPE html>
 
         if (!res.ok) {
           const err = await res.text();
-          out.textContent = '❌ 调用失败 (HTTP ' + res.status + '):\\n' + err;
+          out.textContent = '调用失败 (HTTP ' + res.status + '):\\n' + err;
           meta.textContent = \`网关: \${usedGw} | 模型: \${chosenModel} | 耗时: \${Date.now() - startTime}ms\`;
           btn.disabled = false;
           return;
@@ -1592,7 +2045,7 @@ export const UI_HTML = `<!DOCTYPE html>
         }
         meta.textContent = \`网关: \${usedGw} | 模型: \${chosenModel} | Key: \${usedKey} | 耗时: \${Date.now() - startTime}ms | 完成\`;
       } catch (e) {
-        out.textContent = '❌ 网络异常: ' + e.message;
+        out.textContent = '网络异常: ' + e.message;
       } finally {
         btn.disabled = false;
         fetchData();
@@ -1604,4 +2057,4 @@ export const UI_HTML = `<!DOCTYPE html>
   </script>
 </body>
 </html>
-`
+`;

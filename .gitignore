@@ -1,4 +1,28 @@
+# Dependencies
 node_modules/
 .wrangler/
 dist/
 .DS_Store
+
+# Local Environment & Secrets (Cloudflare & API Keys)
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.cert
+*.crt
+
+# Logs & Temporary Files
+*.log
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# OS & IDE
+Thumbs.db
+.idea/
+.vscode/

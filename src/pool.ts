@@ -27,6 +27,83 @@ const KV_CONFIG = 'key_pool_config'
 let memoryKeysCache: { items: KeyItem[]; expiresAt: number } | null = null
 let memoryConfigCache: { config: PoolConfig; expiresAt: number } | null = null
 
+// 内存短期冷却表（例如 Key 触发 429 临时限流后，在内存中避让 20 秒，绝不持久化当成额度耗尽）
+const keyCooldownMap = new Map<string, number>()
+
+export function markKeyCooldown(keyId: string, durationMs = 20_000): void {
+  keyCooldownMap.set(keyId, Date.now() + durationMs)
+}
+
+export function isKeyInCooldown(keyId: string): boolean {
+  const expiresAt = keyCooldownMap.get(keyId)
+  if (!expiresAt) return false
+  if (Date.now() > expiresAt) {
+    keyCooldownMap.delete(keyId)
+    return false
+  }
+  return true
+}
+
+// 异步聚合统计更新（防 KV 写超频与竞争冲突）
+let statsBatch: Record<string, { successDelta: number; lastUsedAt: number }> = {}
+let lastFlushAt = 0
+
+export async function flushKeyStats(kv: KVNamespace): Promise<void> {
+  const keysToUpdate = Object.keys(statsBatch)
+  if (keysToUpdate.length === 0) return
+
+  const currentBatch = { ...statsBatch }
+  statsBatch = {}
+  lastFlushAt = Date.now()
+
+  try {
+    const keys = await loadKeys(kv, true)
+    let hasChanges = false
+    for (const id of keysToUpdate) {
+      const target = keys.find((k) => k.id === id)
+      const data = currentBatch[id]
+      if (target && data) {
+        target.successCount = (target.successCount || 0) + data.successDelta
+        target.lastUsedAt = Math.max(target.lastUsedAt || 0, data.lastUsedAt)
+        hasChanges = true
+      }
+    }
+    if (hasChanges) {
+      await saveKeys(kv, keys)
+    }
+  } catch (err) {
+    console.error('[flushKeyStats] 写入统计失败:', err)
+  }
+}
+
+export function recordKeySuccess(kv: KVNamespace, keyId: string, ctx?: ExecutionContext): void {
+  const now = Date.now()
+  if (!statsBatch[keyId]) {
+    statsBatch[keyId] = { successDelta: 1, lastUsedAt: now }
+  } else {
+    statsBatch[keyId]!.successDelta++
+    statsBatch[keyId]!.lastUsedAt = now
+  }
+
+  // 同步更新当前实例内存缓存，确保当前节点 WebUI 实时可见
+  if (memoryKeysCache) {
+    const memKey = memoryKeysCache.items.find((k) => k.id === keyId)
+    if (memKey) {
+      memKey.successCount = (memKey.successCount || 0) + 1
+      memKey.lastUsedAt = now
+    }
+  }
+
+  // 节流写入 KV：至少间隔 10 秒才落盘一次全量 KV，杜绝写入竞争与配额超限
+  if (now - lastFlushAt > 10_000) {
+    if (ctx) {
+      ctx.waitUntil(flushKeyStats(kv))
+    } else {
+      flushKeyStats(kv).catch(() => {})
+    }
+  }
+}
+
 export async function loadConfig(kv: KVNamespace, forceFresh = false): Promise<PoolConfig> {
   const now = Date.now()
   if (!forceFresh && memoryConfigCache && memoryConfigCache.expiresAt > now) {
@@ -83,7 +160,7 @@ export async function loadKeys(kv: KVNamespace, forceFresh = false): Promise<Key
   const raw = await kv.get<KeyItem[]>(KV_KEYS, 'json')
   const items = Array.isArray(raw) ? raw : []
 
-  // 兼容老数据：如果没有 gatewayId，默认归为首个网关或 'intern'
+  // 兼容老数据与自动修复历史 429 误判
   let modified = false
   for (const k of items) {
     if (!k.gatewayId) {
@@ -92,6 +169,17 @@ export async function loadKeys(kv: KVNamespace, forceFresh = false): Promise<Key
     }
     if (k.failCount === undefined) k.failCount = 0
     if (k.successCount === undefined) k.successCount = 0
+
+    // 自动修复：将历史版本因 429 临时限流被误打成 exhausted 的 Key 恢复为 active
+    if (
+      k.status === 'exhausted' &&
+      ((k.failReason && k.failReason.includes('429')) || (k.checkMessage && k.checkMessage.includes('429')))
+    ) {
+      k.status = 'active'
+      k.failReason = undefined
+      k.checkMessage = '已自动修复：429限流解除并恢复活跃'
+      modified = true
+    }
   }
 
   if (modified) {
@@ -166,9 +254,12 @@ export function pickCandidateKeys(
   // 1. 筛选归属于该网关且未禁用的候选 Key
   const pool = keys.filter((k) => (k.gatewayId || 'intern') === targetGid && !k.disabled)
 
-  // 2. 活跃可用 Key（随机负载均衡）
+  // 2. 活跃可用 Key：拆分为未冷却（高优先级优先调度）和冷却中（低优先级备用）
   const activeKeys = pool.filter((k) => k.status === 'active')
-  shuffleArray(activeKeys)
+  const readyActive = activeKeys.filter((k) => !isKeyInCooldown(k.id))
+  const coolingActive = activeKeys.filter((k) => isKeyInCooldown(k.id))
+  shuffleArray(readyActive)
+  shuffleArray(coolingActive)
 
   // 3. 超出自动恢复时间的 exhausted Key（自动复活候选）
   const autoRecoverKeys = pool.filter(
@@ -184,7 +275,7 @@ export function pickCandidateKeys(
   )
   shuffleArray(otherExhausted)
 
-  return [...activeKeys, ...autoRecoverKeys, ...otherExhausted]
+  return [...readyActive, ...coolingActive, ...autoRecoverKeys, ...otherExhausted]
 }
 
 /** 向上游探测拉取最新模型列表 */
@@ -254,7 +345,7 @@ export async function probeKey(
     }
 
     if (res.status === 429) {
-      return { ok: false, status: 'exhausted', message: '🟡 触发限流 (429)' }
+      return { ok: true, status: 'active', message: '🟡 触发并发限流 (429)，Key有效' }
     }
 
     if (res.status === 404 || lower.includes('model_not_found') || lower.includes('does not exist')) {
