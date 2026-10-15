@@ -27,7 +27,7 @@ const KV_CONFIG = 'key_pool_config'
 let memoryKeysCache: { items: KeyItem[]; expiresAt: number } | null = null
 let memoryConfigCache: { config: PoolConfig; expiresAt: number } | null = null
 
-// 内存短期冷却表（例如 Key 触发 429 临时限流后，在内存中避让 20 秒，绝不持久化当成额度耗尽）
+// 内存短期冷却表（例如 Key 触发 429 临时并发限流后，在内存中避让 15-20 秒，绝不当成额度耗尽）
 const keyCooldownMap = new Map<string, number>()
 
 export function markKeyCooldown(keyId: string, durationMs = 20_000): void {
@@ -42,6 +42,96 @@ export function isKeyInCooldown(keyId: string): boolean {
     return false
   }
   return true
+}
+
+/** 智能精准判断是否为真正无额度 / 点数耗尽 / 欠费停机 */
+export function isQuotaExhausted(status: number, responseText: string): boolean {
+  // 1. HTTP 402 Payment Required 明确为额度/欠费
+  if (status === 402) return true
+
+  const lower = (responseText || '').toLowerCase()
+  if (!lower) return false
+
+  // 2. 核心特征关键词（覆盖 OpenAI, DeepSeek, 硅基流动, 书生·砚, OpenRouter, Claude, Kimi 等主流平台）
+  const quotaKeywords = [
+    'insufficient_quota',
+    'insufficient quota',
+    'insufficient_user_quota',
+    'quota_exceeded',
+    'quota exceeded',
+    'exceeded your current quota',
+    'exceeded your monthly quota',
+    'resource_exhausted',
+    'resource has been exhausted',
+    'out of credit',
+    'out_of_credits',
+    'run out of credits',
+    'no available balance',
+    'balance is insufficient',
+    'balance_insufficient',
+    'credit exhausted',
+    'credits expired',
+    'account_deactivated',
+    'billing_not_active',
+    'arrears',
+    // 中文特征词
+    '余额不足',
+    '余额已用尽',
+    '欠费',
+    '额度不足',
+    '额度已用尽',
+    '额度耗尽',
+    '额度已用完',
+    '无可用额度',
+    '点数不足',
+    '点数已用尽',
+    '墨点不足',
+    '墨点已耗尽',
+    '墨点已用完',
+    '免费额度已用尽',
+    '免费额度已用完',
+    '账户已被冻结',
+    '账户已停用',
+    '未开通服务',
+    '可用次数已用完',
+    '调用次数超限',
+  ]
+
+  for (const kw of quotaKeywords) {
+    if (lower.includes(kw)) return true
+  }
+
+  return false
+}
+
+/** 智能判断 Key 是否认证失效 / 401 / 秘钥被删或撤销 */
+export function isAuthInvalid(status: number, responseText: string): boolean {
+  if (status === 401) return true
+  const lower = (responseText || '').toLowerCase()
+  if (status === 403) {
+    if (
+      lower.includes('invalid_api_key') ||
+      lower.includes('invalid api key') ||
+      lower.includes('unauthorized') ||
+      lower.includes('forbidden: invalid') ||
+      lower.includes('key does not exist') ||
+      lower.includes('秘钥无效') ||
+      lower.includes('令牌无效')
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+/** 毫秒级同步更新当前 Worker 实例内存中的 Key 状态（保证同实例内并发请求即刻跳过已失效/无额度 Key） */
+export function syncMemoryKeyStatus(keyId: string, updates: Partial<KeyItem>): void {
+  if (memoryKeysCache) {
+    const memKey = memoryKeysCache.items.find((k) => k.id === keyId)
+    if (memKey) {
+      Object.assign(memKey, updates)
+    }
+  }
 }
 
 // 异步聚合统计更新（防 KV 写超频与竞争冲突）
@@ -160,7 +250,7 @@ export async function loadKeys(kv: KVNamespace, forceFresh = false): Promise<Key
   const raw = await kv.get<KeyItem[]>(KV_KEYS, 'json')
   const items = Array.isArray(raw) ? raw : []
 
-  // 兼容老数据与自动修复历史 429 误判
+  // 兼容补全缺失字段
   let modified = false
   for (const k of items) {
     if (!k.gatewayId) {
@@ -169,17 +259,6 @@ export async function loadKeys(kv: KVNamespace, forceFresh = false): Promise<Key
     }
     if (k.failCount === undefined) k.failCount = 0
     if (k.successCount === undefined) k.successCount = 0
-
-    // 自动修复：将历史版本因 429 临时限流被误打成 exhausted 的 Key 恢复为 active
-    if (
-      k.status === 'exhausted' &&
-      ((k.failReason && k.failReason.includes('429')) || (k.checkMessage && k.checkMessage.includes('429')))
-    ) {
-      k.status = 'active'
-      k.failReason = undefined
-      k.checkMessage = '已自动修复：429限流解除并恢复活跃'
-      modified = true
-    }
   }
 
   if (modified) {
@@ -269,13 +348,9 @@ export function pickCandidateKeys(
   )
   shuffleArray(autoRecoverKeys)
 
-  // 4. 其余 exhausted Key 作为最后兜底
-  const otherExhausted = pool.filter(
-    (k) => k.status === 'exhausted' && !autoRecoverKeys.includes(k)
-  )
-  shuffleArray(otherExhausted)
-
-  return [...readyActive, ...coolingActive, ...autoRecoverKeys, ...otherExhausted]
+  // 4. 彻底剔除非自动复活期的 exhausted Key！
+  // 未到复活周期的额度耗尽 Key 必须强制跳过，绝不浪费往返请求时间！
+  return [...readyActive, ...coolingActive, ...autoRecoverKeys]
 }
 
 /** 向上游探测拉取最新模型列表 */
@@ -325,29 +400,24 @@ export async function probeKey(
       return { ok: true, status: 'active', message: '🟢 额度充足，测试正常' }
     }
 
-    if (res.status === 401) {
-      return { ok: false, status: 'invalid', message: '🔴 Key无效或已失效 (401)' }
-    }
-
     const text = await res.text().catch(() => '')
-    const lower = text.toLowerCase()
 
-    if (
-      res.status === 402 ||
-      lower.includes('quota') ||
-      lower.includes('credit') ||
-      lower.includes('insufficient') ||
-      lower.includes('余额不足') ||
-      lower.includes('点数不足') ||
-      lower.includes('墨点不足')
-    ) {
-      return { ok: false, status: 'exhausted', message: `🟡 额度/墨点已耗尽 (${res.status})` }
+    // 1. 优先判断认证失效 (401 或带有无效 Token 响应的 403)
+    if (isAuthInvalid(res.status, text)) {
+      return { ok: false, status: 'invalid', message: `🔴 Key无效或已失效 (${res.status})` }
     }
 
+    // 2. 无论上游返回 429、402、400 还是 403，只要命中额度/余额/点数耗尽特征，必须判为 exhausted！
+    if (isQuotaExhausted(res.status, text)) {
+      return { ok: false, status: 'exhausted', message: `🟡 额度/余额已耗尽 (${res.status})` }
+    }
+
+    // 3. 只有排除额度耗尽后的纯 429，才算作临时并发限流（避让冷却）
     if (res.status === 429) {
-      return { ok: true, status: 'active', message: '🟡 触发并发限流 (429)，Key有效' }
+      return { ok: true, status: 'active', message: '🟡 触发并发限流 (429)，Key有效（避让中）' }
     }
 
+    const lower = text.toLowerCase()
     if (res.status === 404 || lower.includes('model_not_found') || lower.includes('does not exist')) {
       return { ok: false, status: 'invalid', message: `🔴 测试模型 [${model}] 不存在或不可用 (404)` }
     }

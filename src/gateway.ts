@@ -7,6 +7,9 @@ import {
   saveConfig,
   markKeyCooldown,
   recordKeySuccess,
+  isQuotaExhausted,
+  isAuthInvalid,
+  syncMemoryKeyStatus,
 } from './pool.js'
 
 const STREAM_IDLE_LOG_INTERVAL_MS = 60_000
@@ -491,60 +494,72 @@ export async function handleChatCompletions(
         responseChars: resText.length,
       })
 
-      // 1. 429: 临时频率/并发限制，尊重 Retry-After；缺少时默认避让 20 秒。
+      // 1. 优先判定认证失效 (401 或返回无效令牌的 403)
+      if (isAuthInvalid(upstreamRes.status, resText)) {
+        candidate.status = 'invalid'
+        candidate.failReason = `${upstreamRes.status} 认证失效 / 无效Key`
+        candidate.failCount = (candidate.failCount || 0) + 1
+        candidate.lastUsedAt = Date.now()
+        lastErrorMsg = `Key [${candidate.name}] 认证失效 (${upstreamRes.status})`
+
+        // 毫秒级内存同步 + 异步落盘持久化，确保本实例与后续请求立即跳过此无效 Key
+        syncMemoryKeyStatus(candidate.id, {
+          status: 'invalid',
+          failReason: candidate.failReason,
+          failCount: candidate.failCount,
+          lastUsedAt: candidate.lastUsedAt,
+        })
+        if (ctx) {
+          ctx.waitUntil(updateKeyStatus(kv, candidate.id, {
+            status: 'invalid',
+            failReason: candidate.failReason,
+            failCount: candidate.failCount,
+            lastUsedAt: candidate.lastUsedAt,
+          }))
+        }
+        continue // 毫秒级换下一个 Key
+      }
+
+      // 2. 核心优化：深度判定无额度/余额不足/点数耗尽（即使上游返回 429、400、402 还是 403）
+      // 只要响应体或状态码属于额度耗尽特征，必须立刻标记为 exhausted，绝不允许当成临时限流！
+      if (isQuotaExhausted(upstreamRes.status, resText)) {
+        candidate.status = 'exhausted'
+        candidate.failReason = `${upstreamRes.status} 额度已用尽`
+        candidate.checkMessage = `额度/余额已耗尽 (${upstreamRes.status})`
+        candidate.failCount = (candidate.failCount || 0) + 1
+        candidate.lastUsedAt = Date.now()
+        lastErrorMsg = `Key [${candidate.name}] 额度不足 (${upstreamRes.status})`
+
+        // 同步通知内存缓存即刻剔除，同实例内后续请求 0 延迟彻底跳过
+        syncMemoryKeyStatus(candidate.id, {
+          status: 'exhausted',
+          failReason: candidate.failReason,
+          checkMessage: candidate.checkMessage,
+          failCount: candidate.failCount,
+          lastUsedAt: candidate.lastUsedAt,
+        })
+        if (ctx) {
+          ctx.waitUntil(updateKeyStatus(kv, candidate.id, {
+            status: 'exhausted',
+            failReason: candidate.failReason,
+            checkMessage: candidate.checkMessage,
+            failCount: candidate.failCount,
+            lastUsedAt: candidate.lastUsedAt,
+          }))
+        }
+        continue // 毫秒级换下一个可用 Key
+      }
+
+      // 3. 排除额度耗尽后的纯 429: 属于短期临时并发/频率限制，尊重 Retry-After，进入内存避让冷却
       if (upstreamRes.status === 429) {
         const retryAfter = parseRetryAfterMs(upstreamRes.headers.get('retry-after'))
         const cooldownMs = retryAfter ?? DEFAULT_RATE_LIMIT_COOLDOWN_MS
         rateLimitRetryAfterMs = Math.max(rateLimitRetryAfterMs, cooldownMs)
         markKeyCooldown(candidate.id, cooldownMs)
         candidate.failCount = (candidate.failCount || 0) + 1
-        candidate.checkMessage = `临时限流 (429)，已进入${Math.ceil(cooldownMs / 1000)}秒避让冷却`
-        lastErrorMsg = `Key [${candidate.name}] 触发并发限流 (429)，已换号重试`
+        candidate.checkMessage = `临时并发限流 (429)，已进入${Math.ceil(cooldownMs / 1000)}秒避让冷却`
+        lastErrorMsg = `Key [${candidate.name}] 触发临时限流 (429)，已进入冷却并换号`
         continue // 毫秒级换下一个可用 Key
-      }
-
-      // 2. 401: 认证失效，永久置为 invalid
-      if (upstreamRes.status === 401) {
-        candidate.status = 'invalid'
-        candidate.failReason = '401 无效Key'
-        candidate.failCount = (candidate.failCount || 0) + 1
-        candidate.lastUsedAt = Date.now()
-        lastErrorMsg = `Key [${candidate.name}] 认证失效 (401)`
-        if (ctx) {
-          ctx.waitUntil(updateKeyStatus(kv, candidate.id, {
-            status: 'invalid',
-            failReason: '401 无效Key',
-            failCount: candidate.failCount,
-            lastUsedAt: candidate.lastUsedAt,
-          }))
-        }
-        continue // 毫秒级换下一个 Key
-      }
-
-      // 3. 402 或额度/点数真正耗尽
-      if (
-        upstreamRes.status === 402 ||
-        lower.includes('quota') ||
-        lower.includes('insufficient') ||
-        lower.includes('credit') ||
-        lower.includes('余额') ||
-        lower.includes('点数') ||
-        lower.includes('墨点')
-      ) {
-        candidate.status = 'exhausted'
-        candidate.failReason = `${upstreamRes.status} 额度用尽`
-        candidate.failCount = (candidate.failCount || 0) + 1
-        candidate.lastUsedAt = Date.now()
-        lastErrorMsg = `Key [${candidate.name}] 额度不足 (${upstreamRes.status})`
-        if (ctx) {
-          ctx.waitUntil(updateKeyStatus(kv, candidate.id, {
-            status: 'exhausted',
-            failReason: `${upstreamRes.status} 额度用尽`,
-            failCount: candidate.failCount,
-            lastUsedAt: candidate.lastUsedAt,
-          }))
-        }
-        continue // 毫秒级换下一个 Key
       }
 
       candidate.failCount = (candidate.failCount || 0) + 1
