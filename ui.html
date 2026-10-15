@@ -248,7 +248,7 @@
       padding: 0 9px;
       border-radius: 6px;
       background: transparent;
-      border: none;
+      border: 1px solid transparent;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
@@ -262,10 +262,11 @@
       color: #F5F5F7;
     }
     html.dark .gw-tab.active {
-      background: #0071E3;
-      color: #FFFFFF;
+      background: rgba(0, 113, 227, 0.18);
+      color: #3898FF;
       font-weight: 600;
-      box-shadow: 0 1px 3px rgba(0, 113, 227, 0.3);
+      border-color: rgba(0, 113, 227, 0.35);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
     html:not(.dark) .gw-tab { color: #515154; }
     html:not(.dark) .gw-tab:hover {
@@ -273,10 +274,11 @@
       color: #1D1D1F;
     }
     html:not(.dark) .gw-tab.active {
-      background: #0071E3;
-      color: #FFFFFF;
+      background: rgba(0, 113, 227, 0.1);
+      color: #0071E3;
       font-weight: 600;
-      box-shadow: 0 1px 3px rgba(0, 113, 227, 0.2);
+      border-color: rgba(0, 113, 227, 0.22);
+      box-shadow: 0 1px 2px rgba(0, 113, 227, 0.08);
     }
     .gw-badge {
       font-size: 10px;
@@ -285,9 +287,9 @@
       border-radius: 10px;
     }
     html.dark .gw-badge { background: rgba(255, 255, 255, 0.08); color: #A1A1A6; }
-    html.dark .gw-tab.active .gw-badge { background: rgba(255, 255, 255, 0.25); color: #FFFFFF; }
+    html.dark .gw-tab.active .gw-badge { background: rgba(0, 113, 227, 0.3); color: #3898FF; }
     html:not(.dark) .gw-badge { background: #E5E5EA; color: #6E6E73; }
-    html:not(.dark) .gw-tab.active .gw-badge { background: rgba(255, 255, 255, 0.3); color: #FFFFFF; }
+    html:not(.dark) .gw-tab.active .gw-badge { background: rgba(0, 113, 227, 0.15); color: #0071E3; }
 
     /* Badges */
     .badge {
@@ -353,6 +355,8 @@
       transition: all 0.12s;
       display: inline-block;
       white-space: nowrap;
+      max-width: 100%;
+      vertical-align: middle;
     }
     html.dark .key-mono {
       background: rgba(255, 255, 255, 0.05);
@@ -381,11 +385,14 @@
       gap: 3px;
       font-family: var(--font-mono);
       font-size: 11px;
+      line-height: 1.4;
       padding: 2px 6px;
       border-radius: 4px;
       cursor: pointer;
       transition: all 0.12s;
       white-space: nowrap;
+      user-select: none;
+      max-width: 100%;
     }
     html.dark .model-tag {
       background: rgba(255, 255, 255, 0.06);
@@ -607,17 +614,17 @@
 <body class="bg-[#F5F5F7] dark:bg-[#09090B] text-[#1D1D1F] dark:text-[#EDEDEF] antialiased selection:bg-[#0071E3]/20 selection:text-[#0071E3]">
 
   <!-- 全屏 Web App 顶栏 (Sticky Header) -->
-  <header class="sticky top-0 z-30 h-12 w-full backdrop-blur-xl saturate-180 bg-white/80 dark:bg-[#121215]/80 border-b border-black/[0.06] dark:border-white/[0.07] px-4 flex items-center justify-between select-none">
+  <header class="sticky top-0 z-30 h-12 w-full backdrop-blur-xl saturate-180 bg-white/80 dark:bg-[#121215]/80 border-b border-black/[0.06] dark:border-white/[0.07] px-3 sm:px-4 flex items-center justify-between select-none">
     <!-- 左侧 Logo + 标题 + CORE 标识 -->
-    <div class="flex items-center gap-2.5">
-      <div class="w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-semibold text-[11px] shadow-xs">
+    <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      <div class="w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-semibold text-[11px] shadow-xs shrink-0">
         <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
         </svg>
       </div>
-      <div class="flex items-center gap-1.5">
-        <span class="text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">CF-RelayPool</span>
-        <span class="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded bg-black/[0.05] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-400 font-medium">CORE</span>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="text-xs font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 whitespace-nowrap shrink-0">CF-RelayPool</span>
+        <span class="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded bg-black/[0.05] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-400 font-medium whitespace-nowrap shrink-0 hidden sm:inline-block">CORE</span>
       </div>
     </div>
 
@@ -627,31 +634,31 @@
     </div>
 
     <!-- 右侧功能控制簇 -->
-    <div class="flex items-center gap-2">
-      <button class="btn btn-sm btn-secondary p-1 h-7 w-7" onclick="toggleTheme()" id="themeToggleBtn" title="切换深浅主题">
-        <span id="themeToggleIcon" class="flex items-center">
+    <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <button class="btn btn-sm btn-secondary p-1 h-7 w-7 shrink-0" onclick="toggleTheme()" id="themeToggleBtn" title="切换深浅主题">
+        <span id="themeToggleIcon" class="flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
             <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
           </svg>
         </span>
       </button>
 
-      <div class="header-actions flex items-center gap-1.5" id="headerAuthActions" style="display: none;">
-        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          已连接
+      <div class="header-actions flex items-center gap-1 sm:gap-1.5 shrink-0" id="headerAuthActions" style="display: none;">
+        <span class="inline-flex items-center gap-1.5 px-2 py-1 sm:py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap shrink-0" title="服务已连接">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+          <span class="hidden sm:inline">已连接</span>
         </span>
-        <button class="btn btn-sm btn-secondary" onclick="fetchData()">
-          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+        <button class="btn btn-sm btn-secondary shrink-0 h-7 w-7 sm:w-auto p-0 sm:px-2.5" onclick="fetchData()" title="刷新数据">
+          <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
           </svg>
-          刷新
+          <span class="hidden sm:inline">刷新</span>
         </button>
-        <button class="btn btn-sm btn-danger-subtle" onclick="logout()">
-          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+        <button class="btn btn-sm btn-danger-subtle shrink-0 h-7 w-7 sm:w-auto p-0 sm:px-2.5" onclick="logout()" title="安全退出">
+          <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-          退出
+          <span class="hidden sm:inline">退出</span>
         </button>
       </div>
     </div>
@@ -701,47 +708,58 @@
         </div>
 
         <!-- 边栏底栏操作 -->
-        <div class="pt-3 border-t border-black/[0.05] dark:border-white/[0.06] space-y-1">
-          <button class="btn btn-sm btn-primary w-full justify-start text-xs font-medium" onclick="openNewGatewayModal()">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="pt-2.5 sm:pt-3 border-t border-black/[0.05] dark:border-white/[0.06] grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-1.5">
+          <button class="btn btn-sm btn-secondary w-full justify-center md:justify-start text-xs font-medium text-[#0071E3] dark:text-[#3898FF] hover:bg-[#0071E3]/10 border border-[#0071E3]/20 dark:border-[#0071E3]/30" onclick="openNewGatewayModal()">
+            <svg class="w-3.5 h-3.5 text-[#0071E3] dark:text-[#3898FF] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            添加网关
+            <span>添加网关</span>
           </button>
-          <button class="btn btn-sm btn-secondary w-full justify-start text-xs font-medium" onclick="openModal('globalConfigModal')">
-            <svg class="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+          <button class="btn btn-sm btn-secondary w-full justify-center md:justify-start text-xs font-medium text-zinc-700 dark:text-zinc-200" onclick="openModal('globalConfigModal')">
+            <svg class="w-3.5 h-3.5 text-zinc-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
               <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            全局设置
+            <span>全局设置</span>
           </button>
         </div>
       </aside>
 
       <!-- ── 右侧主内容区 (自适应铺满全宽) ── -->
-      <main class="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 space-y-4 bg-zinc-50/60 dark:bg-[#0A0A0C]/90">
+      <main class="flex-1 min-w-0 overflow-y-auto p-3 sm:p-6 space-y-3.5 sm:space-y-4 bg-zinc-50/60 dark:bg-[#0A0A0C]/90">
 
         <!-- 1. 网关详情与参数条 (Inspector Strip) -->
-        <div class="rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div class="space-y-2 flex-1 min-w-0">
+        <div class="rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] p-3.5 sm:p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs overflow-hidden max-w-full box-border">
+          <div class="space-y-2.5 flex-1 min-w-0 max-w-full">
             <div class="flex items-center gap-2 flex-wrap">
               <span id="curGwName" class="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">网关名称</span>
               <span id="curGwDefaultBadge"></span>
-              <div class="flex items-center gap-3 text-zinc-500 dark:text-zinc-400 font-mono text-[11px] ml-2">
-                <span>上游: <code class="key-mono" id="curGwBase">...</code></span>
-                <span>默认模型: <b id="curGwModel" class="text-zinc-700 dark:text-zinc-200">...</b></span>
-                <span>专属路由: <code class="key-mono" id="curGwRoute">...</code></span>
+            </div>
+
+            <!-- 网关核心参数条：桌面端横向 flex，移动端垂直单列堆叠 -->
+            <div class="flex flex-col md:flex-row md:items-center gap-1.5 md:gap-3 text-zinc-500 dark:text-zinc-400 font-mono text-[11px] max-w-full overflow-hidden">
+              <div class="flex items-center gap-1.5 min-w-0 max-w-full">
+                <span class="text-zinc-400 shrink-0">上游:</span>
+                <code class="key-mono truncate max-w-full break-all" id="curGwBase">...</code>
+              </div>
+              <div class="flex items-center gap-1.5 min-w-0 max-w-full">
+                <span class="text-zinc-400 shrink-0">默认模型:</span>
+                <b id="curGwModel" class="text-zinc-700 dark:text-zinc-200 truncate max-w-full">...</b>
+              </div>
+              <div class="flex items-center gap-1.5 min-w-0 max-w-full">
+                <span class="text-zinc-400 shrink-0">专属路由:</span>
+                <code class="key-mono truncate max-w-full break-all" id="curGwRoute">...</code>
               </div>
             </div>
 
             <!-- 可用模型列表：改用 flex flex-wrap 流式换行，彻底消除 Windows 灰色横向滚动条 -->
-            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
-              <span class="text-zinc-400 text-[11px] whitespace-nowrap">可用模型:</span>
-              <div id="curGwModelTags" class="inline-flex gap-1.5 flex-wrap items-center"></div>
+            <div class="flex items-start sm:items-center gap-1.5 flex-wrap pt-0.5 max-w-full">
+              <span class="text-zinc-400 text-[11px] whitespace-nowrap shrink-0 mt-0.5 sm:mt-0">可用模型:</span>
+              <div id="curGwModelTags" class="inline-flex gap-1.5 flex-wrap items-center min-w-0 max-w-full"></div>
             </div>
           </div>
 
           <!-- 网关操作按钮 -->
-          <div class="flex items-center gap-1.5 shrink-0 self-start">
+          <div class="flex items-center gap-1.5 shrink-0 self-start md:self-center flex-wrap pt-1 md:pt-0">
             <button class="btn btn-sm btn-secondary" id="btnFetchModels" onclick="fetchCurrentGatewayModels()">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                 <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
@@ -770,40 +788,40 @@
         </div>
 
         <!-- 2. 4 个核心指标恢复为精致 Bento 卡片 (grid-cols-4，呼吸感与饱满大字) -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
-            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              活跃可用 Key
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          <div class="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <span class="truncate">活跃可用 Key</span>
             </div>
-            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statActive">0</div>
+            <div class="font-sans text-xl sm:text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statActive">0</div>
           </div>
 
-          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
-            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              额度耗尽 / 限流
+          <div class="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+              <span class="truncate">额度耗尽 / 限流</span>
             </div>
-            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statExhausted">0</div>
+            <div class="font-sans text-xl sm:text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statExhausted">0</div>
           </div>
 
-          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
-            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              认证失效 / 401
+          <div class="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 font-medium truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+              <span class="truncate">认证失效 / 401</span>
             </div>
-            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statInvalid">0</div>
+            <div class="font-sans text-xl sm:text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statInvalid">0</div>
           </div>
 
-          <div class="p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
-            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center justify-between font-medium">
-              <span class="flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                视图 Key 总数
+          <div class="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.05] dark:border-white/[0.06] shadow-xs">
+            <div class="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 flex items-center justify-between font-medium">
+              <span class="flex items-center gap-1.5 truncate">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                <span class="truncate">视图 Key 总数</span>
               </span>
-              <span class="text-[10px] text-zinc-400 font-mono" id="statDesc">所有状态</span>
+              <span class="text-[10px] text-zinc-400 font-mono shrink-0 ml-1" id="statDesc">所有状态</span>
             </div>
-            <div class="font-sans text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statTotalKeys">0</div>
+            <div class="font-sans text-xl sm:text-2xl font-semibold tabular-nums tracking-tight text-zinc-900 dark:text-zinc-100 mt-1" id="statTotalKeys">0</div>
           </div>
         </div>
 
@@ -811,39 +829,39 @@
         <div class="rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] shadow-xs overflow-hidden">
           
           <!-- 工具栏 -->
-          <div class="px-3.5 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-2.5">
-            <div class="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
-              <button class="h-7 px-2.5 rounded-md bg-[#0071E3] hover:bg-[#0077ED] text-white text-[11px] font-medium shadow-xs inline-flex items-center gap-1.5 whitespace-nowrap" onclick="openImportModal()">
+          <div class="px-3 sm:px-3.5 py-2.5 border-b border-black/[0.05] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-2.5">
+            <div class="flex items-center gap-1.5 flex-nowrap overflow-x-auto max-w-full pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+              <button class="h-7 px-2.5 rounded-md bg-[#0071E3] hover:bg-[#0077ED] text-white text-[11px] font-medium shadow-xs inline-flex items-center gap-1.5 whitespace-nowrap shrink-0" onclick="openImportModal()">
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
                 导入 Key
               </button>
-              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" id="btnProbeAll" onclick="probeAllKeys()">
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors" id="btnProbeAll" onclick="probeAllKeys()">
                 <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                   <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
                 安全批量测活
               </button>
-              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" onclick="reviveAllKeys()">
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors" onclick="reviveAllKeys()">
                 <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                   <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
                 </svg>
                 一键复活
               </button>
-              <button class="h-7 px-2.5 rounded-md text-[#FF3B30] dark:text-[#FF453A] hover:bg-[#FF3B30]/[0.06] border border-[#FF3B30]/20 text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap" onclick="cleanInvalidKeys()">
+              <button class="h-7 px-2.5 rounded-md text-[#FF3B30] dark:text-[#FF453A] hover:bg-[#FF3B30]/[0.06] border border-[#FF3B30]/20 text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0" onclick="cleanInvalidKeys()">
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
                 清理失效
               </button>
-              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" onclick="openExportModal()">
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors" onclick="openExportModal()">
                 <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
                 导出备份
               </button>
-              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap transition-colors" onclick="openTestModal()">
+              <button class="h-7 px-2.5 rounded-md bg-white dark:bg-white/[0.04] hover:bg-zinc-50 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 border border-black/[0.08] dark:border-white/[0.08] text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors" onclick="openTestModal()">
                 <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
@@ -852,14 +870,14 @@
             </div>
 
             <!-- 右侧搜索与过滤分段控制器 -->
-            <div class="flex items-center gap-2">
-              <div class="relative">
-                <input type="text" id="searchKeyInput" class="h-7 w-36 sm:w-44 pl-7 pr-2 rounded-md bg-[#F2F2F7] dark:bg-white/[0.05] border border-transparent focus:border-[#0071E3] focus:bg-white dark:focus:bg-[#1C1C1E] text-[11px] outline-none transition-all" placeholder="搜索 Key 或备注..." oninput="handleSearch(this.value)">
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+              <div class="relative flex-1 sm:flex-initial">
+                <input type="text" id="searchKeyInput" class="h-7 w-full sm:w-44 pl-7 pr-2 rounded-md bg-[#F2F2F7] dark:bg-white/[0.05] border border-transparent focus:border-[#0071E3] focus:bg-white dark:focus:bg-[#1C1C1E] text-[11px] outline-none transition-all" placeholder="搜索 Key 或备注..." oninput="handleSearch(this.value)">
                 <svg class="w-3 h-3 absolute left-2 top-2 text-zinc-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
               </div>
-              <div class="tabs">
+              <div class="tabs overflow-x-auto max-w-full [&::-webkit-scrollbar]:hidden shrink-0">
                 <button class="tab active" onclick="setFilter('all', this)">全部 (<span class="font-mono tabular-nums" id="countAll">0</span>)</button>
                 <button class="tab" onclick="setFilter('active', this)">活跃 (<span class="font-mono tabular-nums" id="countActive">0</span>)</button>
                 <button class="tab" onclick="setFilter('exhausted', this)">耗尽 (<span class="font-mono tabular-nums" id="countExhausted">0</span>)</button>
@@ -893,7 +911,7 @@
           </div>
 
           <!-- 分页栏 -->
-          <div class="px-3.5 py-2 bg-zinc-50/50 dark:bg-white/[0.01] border-t border-black/[0.05] dark:border-white/[0.06] flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+          <div class="px-3 sm:px-3.5 py-2.5 bg-zinc-50/50 dark:bg-white/[0.01] border-t border-black/[0.05] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             <div class="flex items-center gap-2">
               <span>展示:</span>
               <select id="pageSizeSelect" class="form-select w-16 py-0.5 px-1.5 text-xs font-mono tabular-nums" onchange="changePageSize(this.value)">
@@ -905,10 +923,10 @@
               </select>
               <span class="font-mono tabular-nums text-[11px]" id="pageTotalInfo">共 0 条</span>
             </div>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 flex-wrap">
               <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnFirstPage" onclick="goToPage(1)">首页</button>
               <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnPrevPage" onclick="prevPage()">上页</button>
-              <span class="mx-1.5 font-mono tabular-nums text-zinc-700 dark:text-zinc-300 text-[11px]">
+              <span class="mx-1 font-mono tabular-nums text-zinc-700 dark:text-zinc-300 text-[11px]">
                 第 <strong id="curPageNum" class="text-zinc-900 dark:text-zinc-100 font-semibold">1</strong> / <strong id="totalPageNum" class="text-zinc-900 dark:text-zinc-100 font-semibold">1</strong> 页
               </span>
               <button class="btn btn-sm btn-secondary h-6 px-2 text-[11px]" id="btnNextPage" onclick="nextPage()">下页</button>
@@ -918,19 +936,19 @@
         </div>
 
         <!-- 4. 客户端接入区 (独立底部卡片，拥有明确的 mt-4 边距与规整网格) -->
-        <div class="mt-4 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] p-4 shadow-xs space-y-2.5">
+        <div class="mt-3.5 sm:mt-4 rounded-xl bg-white dark:bg-[#141417] border border-black/[0.06] dark:border-white/[0.07] p-3.5 sm:p-4 shadow-xs space-y-2.5 overflow-hidden">
           <div class="flex items-center gap-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
-            <svg class="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <svg class="w-3.5 h-3.5 text-zinc-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
               <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
             </svg>
-            客户端接入 (OpenAI 协议)
+            <span>客户端接入 (OpenAI 协议)</span>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
+            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1 overflow-hidden">
               <div class="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">通用全局入口 (模型自路由)</div>
-              <div class="flex items-center justify-between gap-1">
-                <code class="key-mono truncate flex-1" id="apiEndpointBase">https://.../v1</code>
-                <button class="btn btn-sm btn-secondary p-1 h-5 w-5" onclick="copyText(document.getElementById('apiEndpointBase').textContent)" title="复制">
+              <div class="flex items-center justify-between gap-1 max-w-full">
+                <code class="key-mono truncate flex-1 min-w-0" id="apiEndpointBase">https://.../v1</code>
+                <button class="btn btn-sm btn-secondary p-1 h-5 w-5 shrink-0" onclick="copyText(document.getElementById('apiEndpointBase').textContent)" title="复制">
                   <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
@@ -938,11 +956,11 @@
               </div>
             </div>
 
-            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1">
+            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1 overflow-hidden">
               <div class="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">当前网关专属入口</div>
-              <div class="flex items-center justify-between gap-1">
-                <code class="key-mono truncate flex-1" id="apiEndpointSpecific">https://.../{id}/v1</code>
-                <button class="btn btn-sm btn-secondary p-1 h-5 w-5" onclick="copyText(document.getElementById('apiEndpointSpecific').textContent)" title="复制">
+              <div class="flex items-center justify-between gap-1 max-w-full">
+                <code class="key-mono truncate flex-1 min-w-0" id="apiEndpointSpecific">https://.../{id}/v1</code>
+                <button class="btn btn-sm btn-secondary p-1 h-5 w-5 shrink-0" onclick="copyText(document.getElementById('apiEndpointSpecific').textContent)" title="复制">
                   <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
@@ -950,12 +968,12 @@
               </div>
             </div>
 
-            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1">
+            <div class="p-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.03] border border-black/[0.04] dark:border-white/[0.05] space-y-1 overflow-hidden">
               <div class="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">客户端 Bearer Token</div>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <code class="key-mono tabular-nums truncate flex-1" id="hintClientApiKey">••••••••••••</code>
-                <button class="btn btn-sm btn-secondary py-0.5 px-1.5 text-[10px] h-5" id="btnToggleKeyMask" onclick="toggleApiKeyMask()">显示</button>
-                <button class="btn btn-sm btn-primary py-0.5 px-1.5 text-[10px] h-5" onclick="copyFullClientApiKey()">复制</button>
+              <div class="flex items-center gap-1.5 flex-wrap max-w-full">
+                <code class="key-mono tabular-nums truncate flex-1 min-w-0" id="hintClientApiKey">••••••••••••</code>
+                <button class="btn btn-sm btn-secondary py-0.5 px-1.5 text-[10px] h-5 shrink-0" id="btnToggleKeyMask" onclick="toggleApiKeyMask()">显示</button>
+                <button class="btn btn-sm btn-primary py-0.5 px-1.5 text-[10px] h-5 shrink-0" onclick="copyFullClientApiKey()">复制</button>
               </div>
             </div>
           </div>
@@ -1158,13 +1176,24 @@
   <div id="toast"></div>
 
   <script>
-    // ── Theme Management ──
-    const SVG_SUN = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
-    const SVG_MOON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    // ── Theme Management & Global Icons ──
+    var SVG_SUN = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+    var SVG_MOON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    var SVG_STAR = `<svg class="w-3 h-3 text-blue-500 fill-blue-500 shrink-0" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+
+    function safeGetStorage(key) {
+      try { return localStorage.getItem(key); } catch (e) { return null; }
+    }
+    function safeSetStorage(key, val) {
+      try { localStorage.setItem(key, val); } catch (e) {}
+    }
+    function safeRemoveStorage(key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+    }
 
     function initTheme() {
-      const stored = localStorage.getItem('cf_theme');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const stored = safeGetStorage('cf_theme');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (stored === 'light' || (!stored && !prefersDark)) {
         document.documentElement.classList.remove('dark');
         document.getElementById('themeToggleIcon').innerHTML = SVG_MOON;
@@ -1175,20 +1204,20 @@
     }
     function toggleTheme() {
       const isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('cf_theme', isDark ? 'dark' : 'light');
+      safeSetStorage('cf_theme', isDark ? 'dark' : 'light');
       document.getElementById('themeToggleIcon').innerHTML = isDark ? SVG_SUN : SVG_MOON;
     }
     initTheme();
 
-    let poolData = { keys: [], config: { gateways: [], activeGatewayId: 'intern' } };
-    let viewingGatewayId = 'all'; // 默认进入【全部网关】视图，总览所有 Key
-    let currentFilter = 'all';
-    let currentSearch = '';
-    let currentPage = 1;
-    let pageSize = 15;
+    var poolData = { keys: [], config: { gateways: [], activeGatewayId: 'intern' } };
+    var viewingGatewayId = 'all'; // 默认进入【全部网关】视图，总览所有 Key
+    var currentFilter = 'all';
+    var currentSearch = '';
+    var currentPage = 1;
+    var pageSize = 15;
     const TOKEN_STORAGE_KEY = 'keypool_admin_key';
 
-    const PRESETS = {
+    var PRESETS = {
       intern: { id: 'intern', name: '书生·砚 (PJLab)', base: 'https://discovery-api.intern-ai.org.cn/v1', model: 'deepseek-v4-flash-0731', list: 'deepseek-v4-flash-0731,Agents-A1,Atria-Dawn-Preview' },
       deepseek: { id: 'deepseek', name: 'DeepSeek 官方', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', list: 'deepseek-chat,deepseek-reasoner' },
       silicon: { id: 'silicon', name: '硅基流动 SiliconFlow', base: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3', list: 'deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1' },
@@ -1208,13 +1237,13 @@
       if (p.list) document.getElementById('gwCustomModelsInput').value = p.list;
     }
 
-    function getAdminKey() { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; }
+    function getAdminKey() { return safeGetStorage(TOKEN_STORAGE_KEY) || ''; }
     function setAdminKey(key) {
-      if (key) localStorage.setItem(TOKEN_STORAGE_KEY, key);
-      else localStorage.removeItem(TOKEN_STORAGE_KEY);
+      if (key) safeSetStorage(TOKEN_STORAGE_KEY, key);
+      else safeRemoveStorage(TOKEN_STORAGE_KEY);
     }
 
-    let isApiKeyRevealed = false;
+    var isApiKeyRevealed = false;
 
     function renderApiKeyHint() {
       const rawKey = poolData.config?.clientApiKey || '';
@@ -1361,9 +1390,6 @@
       currentPage = 1;
       renderTableOnly();
     }
-
-    // 极简 SVG 线性图标 helper
-    const SVG_STAR = `<svg class="w-3 h-3 text-blue-500 fill-blue-500 shrink-0" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 
     function render() {
       const config = poolData.config || {};
@@ -2054,6 +2080,7 @@
 
     if (!getAdminKey()) showLoginView();
     else fetchData();
+    window.__UI_INITIALIZED__ = true;
   </script>
 </body>
 </html>
