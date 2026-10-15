@@ -57,6 +57,13 @@ export function isQuotaExhausted(status: number, responseText: string): boolean 
     'insufficient_quota',
     'insufficient quota',
     'insufficient_user_quota',
+    'insufficient_balance',
+    'insufficient balance',
+    'insufficient funds',
+    'insufficient_funds',
+    'insufficient credit',
+    'not enough balance',
+    'balance is not enough',
     'quota_exceeded',
     'quota exceeded',
     'exceeded your current quota',
@@ -66,6 +73,7 @@ export function isQuotaExhausted(status: number, responseText: string): boolean 
     'out of credit',
     'out_of_credits',
     'run out of credits',
+    'run out of quota',
     'no available balance',
     'balance is insufficient',
     'balance_insufficient',
@@ -74,9 +82,15 @@ export function isQuotaExhausted(status: number, responseText: string): boolean 
     'account_deactivated',
     'billing_not_active',
     'arrears',
+    'credit limit reached',
+    'credit limit exceeded',
+    'zero balance',
+    'no credit remaining',
     // 中文特征词
     '余额不足',
     '余额已用尽',
+    '余额用尽',
+    '余额为0',
     '欠费',
     '额度不足',
     '额度已用尽',
@@ -85,6 +99,7 @@ export function isQuotaExhausted(status: number, responseText: string): boolean 
     '无可用额度',
     '点数不足',
     '点数已用尽',
+    '点数已用完',
     '墨点不足',
     '墨点已耗尽',
     '墨点已用完',
@@ -168,6 +183,9 @@ export async function flushKeyStats(kv: KVNamespace): Promise<void> {
 
 export function recordKeySuccess(kv: KVNamespace, keyId: string, ctx?: ExecutionContext): void {
   const now = Date.now()
+  // 成功调用时立即解除内存冷却状态
+  keyCooldownMap.delete(keyId)
+
   if (!statsBatch[keyId]) {
     statsBatch[keyId] = { successDelta: 1, lastUsedAt: now }
   } else {

@@ -597,10 +597,10 @@ export default {
       }
 
       if (subRoute === 'chat/completions') {
-        return handleChatCompletions(request, env.KEY_POOL_KV, config, ctx, targetGatewayId)
+        return handleChatCompletions(request, env.KEY_POOL_KV, config, ctx, requestedGatewayId)
       }
       if (subRoute === 'models') {
-        return handleModels(request, env.KEY_POOL_KV, config, ctx, targetGatewayId)
+        return handleModels(request, env.KEY_POOL_KV, config, ctx, requestedGatewayId)
       }
     }
 
